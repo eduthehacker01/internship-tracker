@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Internship Attendance & Logbook Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Charting & PDF Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <!-- AUTH SCREEN -->
+    <div class="auth-screen-container" id="authScreen">
+        <div class="auth-card glass-card">
+            <div class="logo-container" style="justify-content: center; margin-bottom: 2rem;">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#070a13" stroke-width="2.5" style="width:24px; height:24px;">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div style="text-align: left;">
+                    <h3 class="logo-text" style="font-size: 1.5rem;">SIWES Tracker</h3>
+                    <span class="logo-sub">Computer Science</span>
+                </div>
+            </div>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Log In</button>
+                <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">Register Intern</button>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="loginFormContainer" class="auth-tab-content active">
+                <form onsubmit="handleLoginSubmit(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="loginUser">Log In As</label>
+                        <select id="loginUser" class="form-control" onchange="handleLoginRoleChange()">
+                            <!-- Registered students and roles will load dynamically -->
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:1.5rem; padding:0.8rem;">Access Dashboard</button>
+                </form>
+            </div>
+            
+            <!-- Register Form -->
+            <div id="registerFormContainer" class="auth-tab-content">
+                <form onsubmit="handleRegistrationSubmit(event)">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="regMatric">Matric Number</label>
+                            <input type="text" id="regMatric" class="form-control" placeholder="e.g. UI/2022/CS/102" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="regName">Full Name</label>
+                            <input type="text" id="regName" class="form-control" placeholder="e.g. Anita Okafor" required>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="regDept">Department</label>
+                            <input type="text" id="regDept" class="form-control" value="Computer Science" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="regLevel">Level</label>
+                            <select id="regLevel" class="form-control">
+                                <option value="400L">400L</option>
+                                <option value="300L">300L</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regCompany">Placement Company</label>
+                        <input type="text" id="regCompany" class="form-control" placeholder="e.g. TechCorp Solutions Ltd" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="regAddress">Office Physical Address</label>
+                        <input type="text" id="regAddress" class="form-control" placeholder="e.g. 45 Marine Road, Victoria Island, Lagos" required>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 0.5rem; align-items: flex-end;" class="form-group">
+                        <div>
+                            <button type="button" class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; height:38px;" onclick="fetchOfficeCoordinates()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4 12H2m20 0h-2"/></svg>
+                                <span>Get Office GPS</span>
+                            </button>
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size:0.7rem;">Latitude</label>
+                            <input type="number" step="any" id="regLat" class="form-control" value="6.428056" required style="font-size:0.8rem; padding:0.5rem;">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size:0.7rem;">Longitude</label>
+                            <input type="number" step="any" id="regLon" class="form-control" value="3.421944" required style="font-size:0.8rem; padding:0.5rem;">
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="regIndSupervisor">Industry Supervisor</label>
+                            <input type="text" id="regIndSupervisor" class="form-control" value="Engr. Sarah Jenkins" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="regSchSupervisor">Academic Supervisor</label>
+                            <input type="text" id="regSchSupervisor" class="form-control" value="Dr. Festus Alao" required>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:1rem; padding:0.8rem;">Register Intern</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" id="appShell" style="display: none;">
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#070a13" stroke-width="2.5" style="width:24px; height:24px;">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="logo-text">SIWES Tracker</h3>
+                    <span class="logo-sub">Computer Science</span>
+                </div>
+            </div>
+            
+            <nav style="flex-grow: 1;">
+                <ul class="nav-links" id="navLinksContainer">
+                    <!-- Nav items loaded dynamically by app.js -->
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="user-avatar" id="sidebarAvatar">
+                        <img src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=100&q=80" alt="Avatar">
+                        <div class="user-status-dot"></div>
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name" id="sidebarUserName">Chinedu Azubuike</div>
+                        <div class="user-role" id="sidebarUserRole">400L CS Intern</div>
+                    </div>
+                </div>
+                <button onclick="handleLogout()" class="btn btn-secondary btn-sm" style="width: 100%; justify-content: center; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.15); color: var(--danger); font-size: 0.72rem; padding: 0.4rem;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span>Logout Session</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MOBILE BOTTOM NAVIGATION -->
+        <div class="mobile-nav" id="mobileNavContainer">
+            <!-- Nav items loaded dynamically on mobile screens -->
+        </div>
+
+        <!-- MAIN WRAPPER -->
+        <main class="main-wrapper">
+            <!-- HEADER -->
+            <header class="header">
+                <button class="hamburger-menu" id="mobileMenuToggle" onclick="toggleSidebar()" style="display: none; background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 4px; margin-right: 12px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h2 class="page-title" id="pageTitle">Dashboard</h2>
+                <div class="header-actions">
+                    <div class="date-display">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        <span id="headerDateText">Thursday, July 2, 2026</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- MAIN CONTENT PANEL -->
+            <div class="content-body">
+
+                <!-- ========================================== -->
+                <!-- STUDENT VIEWS                              -->
+                <!-- ========================================== -->
+                
+                <!-- Tab: Student Dashboard Overview -->
+                <section class="view-section" id="student_overview_view">
+                    <!-- Stats Grid -->
+                    <div class="stats-grid">
+                        <div class="glass-card card-primary">
+                            <div class="stat-header">
+                                <span class="stat-title">Attendance Rate</span>
+                                <div class="stat-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="student_att_rate">94%</div>
+                            <div class="stat-desc">Target: 80% Min compliance</div>
+                        </div>
+                        <div class="glass-card card-primary">
+                            <div class="stat-header">
+                                <span class="stat-title">Days Completed</span>
+                                <div class="stat-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="student_days_completed">5/120</div>
+                            <div class="stat-desc">Remaining: 115 Days</div>
+                        </div>
+                        <div class="glass-card card-primary">
+                            <div class="stat-header">
+                                <span class="stat-title">Pending Logs</span>
+                                <div class="stat-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="student_pending_logs">1</div>
+                            <div class="stat-desc">Awaiting Supervisor Signature</div>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Columns -->
+                    <div class="dashboard-grid">
+                        <!-- Left Column: Clock In UI -->
+                        <div class="glass-card clock-panel">
+                            <div class="clock-timer" id="clockTimer">08:00:00</div>
+                            <div class="clock-date" id="clockDate">Thursday, July 2, 2026</div>
+                            
+                            <button class="btn-clock clock-in" id="clockBtn" onclick="triggerClockAction()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                <span>Clock In</span>
+                            </button>
+                            
+                            <div class="clock-status-bar">
+                                <span class="pulse-dot inactive" id="clockIndicator"></span>
+                                <span id="clockStatusText">Not clocked in today</span>
+                            </div>
+
+                            <!-- Geolocation Status -->
+                            <div class="location-status success" id="student_location_status">
+                                <div class="location-icon-container">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                        <circle cx="12" cy="10" r="3"/>
+                                    </svg>
+                                </div>
+                                <div style="text-align: left; flex-grow: 1;">
+                                    <div style="font-weight: 700; margin-bottom: 2px;" id="student_location_label">Detecting Position...</div>
+                                    <div style="font-size: 0.72rem; color: var(--text-secondary);" id="student_location_desc">Fetching coordinates via browser geolocation</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Calendar Widget & Log Summary -->
+                        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                            <!-- Attendance History Calendar -->
+                            <div class="glass-card">
+                                <h4 class="card-title" style="margin-bottom:1rem">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                    <span>Attendance Frame</span>
+                                </h4>
+                                <div class="calendar-widget">
+                                    <div class="calendar-header">
+                                        <span>SIWES Attendance Log (June - July)</span>
+                                    </div>
+                                    <div class="calendar-days" id="calendarDays">
+                                        <!-- Built dynamically by app.js -->
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 1rem; margin-top: 1rem; font-size: 0.72rem; justify-content: center;">
+                                    <span style="display:flex; align-items:center; gap:4px;"><span style="width:10px; height:10px; background:rgba(16,185,129,0.2); border:1px solid var(--success); border-radius:3px;"></span> On-Site</span>
+                                    <span style="display:flex; align-items:center; gap:4px;"><span style="width:10px; height:10px; background:rgba(245,158,11,0.2); border:1px solid var(--warning); border-radius:3px;"></span> Flagged</span>
+                                    <span style="display:flex; align-items:center; gap:4px;"><span style="width:10px; height:10px; background:rgba(239,68,68,0.1); border:1px solid var(--danger); border-radius:3px;"></span> Absent</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Personal Attendance Performance Chart -->
+                    <div class="glass-card" style="margin-bottom: 1.5rem;">
+                        <h4 class="card-title" style="margin-bottom: 1rem">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+                            <span>Attendance Compliance History</span>
+                        </h4>
+                        <div style="position: relative; height: 260px; width: 100%;">
+                            <canvas id="studentAttendancePerformanceChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Recent Shifts Table -->
+                    <div class="glass-card">
+                        <h4 class="card-title" style="margin-bottom:1rem">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>Recent Attendance Sessions</span>
+                        </h4>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Clock In</th>
+                                        <th>Clock Out</th>
+                                        <th>Punctuality</th>
+                                        <th>Geofence Distance</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="student_recent_attendance_table">
+                                    <!-- Populated dynamically by app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Student Daily Logbook -->
+                <section class="view-section" id="student_logbook_view">
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <div>
+                                <h4 class="card-title">Daily Logbook Journal</h4>
+                                <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">Record your technical achievements, challenges, and hours daily.</p>
+                            </div>
+                            <button class="btn btn-primary" id="studentNewLogBtn" onclick="openAddLogModal()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                <span>Add Daily Entry</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Block message if student hasn't clocked in today -->
+                        <div class="location-status danger" id="studentLogbookWarning" style="display:none; margin-bottom:1.5rem;">
+                            <div class="location-icon-container" style="background:rgba(239, 68, 68, 0.15); color:var(--danger)">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            </div>
+                            <div style="text-align:left">
+                                <strong>Logbook Submission Disabled</strong>
+                                <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">You must Clock In before you can log today's work activities.</p>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Work Description Summary</th>
+                                        <th>Tools Used</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="student_logs_table">
+                                    <!-- Populated dynamically by app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Student Weekly Reports -->
+                <section class="view-section" id="student_weekly_view">
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <div>
+                                <h4 class="card-title">Weekly Summaries & Evaluations</h4>
+                                <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">Draft your weekly summaries for academic supervisor monitoring.</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="openAddWeeklyModal()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                <span>Submit Week Summary</span>
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Week</th>
+                                        <th>Summary Preview</th>
+                                        <th>Appraisal Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="student_weekly_table">
+                                    <!-- Populated dynamically by app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Student Profile -->
+                <section class="view-section" id="student_profile_view">
+                    <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="glass-card">
+                            <h4 class="card-title" style="margin-bottom:1.5rem">Academic & Placement Data</h4>
+                            <div class="info-row"><span class="info-label">Student Name:</span><span class="info-value" id="profile_name">--</span></div>
+                            <div class="info-row"><span class="info-label">Matric Number:</span><span class="info-value" id="profile_matric">--</span></div>
+                            <div class="info-row"><span class="info-label">Department:</span><span class="info-value" id="profile_dept">--</span></div>
+                            <div class="info-row"><span class="info-label">Level:</span><span class="info-value" id="profile_level">--</span></div>
+                            <div class="info-row"><span class="info-label">Placement Company:</span><span class="info-value" id="profile_company">--</span></div>
+                            <div class="info-row"><span class="info-label">Office Address:</span><span class="info-value" id="profile_address">--</span></div>
+                        </div>
+                        
+                        <div style="display:flex; flex-direction:column; gap:1.5rem;">
+                            <div class="glass-card">
+                                <h4 class="card-title" style="margin-bottom:1.25rem">Assigned Location Geofence</h4>
+                                <div class="info-row"><span class="info-label">Office Geofence GPS:</span><span class="info-value" id="profile_gps">--</span></div>
+                                <div style="font-size:0.75rem; color:var(--text-secondary); line-height:1.4; margin-top:0.5rem;">
+                                    Attendance check-in restricts actions to locations within <strong>200 meters</strong> of these coordinates. Out-of-bounds clock-ins are flagged in red.
+                                </div>
+                            </div>
+                            
+                            <div class="glass-card">
+                                <h4 class="card-title" style="margin-bottom:1.25rem">Supervision & Grading</h4>
+                                <div class="info-row"><span class="info-label">Industry Supervisor:</span><span class="info-value" id="profile_ind_sup">--</span></div>
+                                <div class="info-row"><span class="info-label">Academic Supervisor:</span><span class="info-value" id="profile_sch_sup">--</span></div>
+                                <div style="margin-top:1.25rem;" id="profile_grade_box">
+                                    <!-- Grade output -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- ========================================== -->
+                <!-- INDUSTRY SUPERVISOR VIEWS                  -->
+                <!-- ========================================== -->
+                
+                <!-- Tab: Supervisor Dashboard Overview -->
+                <section class="view-section" id="industry_overview_view">
+                    <div class="stats-grid">
+                        <div class="glass-card card-primary">
+                            <div class="stat-header">
+                                <span class="stat-title">Verified Daily Logs</span>
+                                <div class="stat-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="ind_logs_verified">4/5</div>
+                            <div class="stat-desc">Check pending logs in verify tab</div>
+                        </div>
+                        <div class="glass-card card-danger">
+                            <div class="stat-header">
+                                <span class="stat-title">Geofence Flags</span>
+                                <div class="stat-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="ind_geofence_flags" style="color: var(--danger);">1</div>
+                            <div class="stat-desc">Clock-ins outside authorized area</div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid">
+                        <!-- Active Intern details -->
+                        <div class="glass-card">
+                            <h4 class="card-title" style="margin-bottom:1.5rem">Active Intern Profile</h4>
+                            <div class="info-row"><span class="info-label">Name:</span><span class="info-value" id="ind_student_name">Chinedu Azubuike</span></div>
+                            <div class="info-row"><span class="info-label">Matric Number:</span><span class="info-value" id="ind_student_matric">UI/2022/CS/101</span></div>
+                            <div class="info-row"><span class="info-label">Department:</span><span class="info-value">Computer Science</span></div>
+                            <div class="info-row"><span class="info-label">Assigned Office:</span><span class="info-value">TechCorp Victoria Island</span></div>
+                        </div>
+
+                        <!-- Industry Performance Evaluation -->
+                        <div class="glass-card">
+                            <h4 class="card-title">Performance Appraisal</h4>
+                            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:1rem; margin-top:2px;">Rate technical skills and workplace discipline.</p>
+                            
+                            <div style="margin-bottom: 1.5rem;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.9rem; font-weight:600; margin-bottom:6px;">
+                                    <span>Current Evaluation Score</span>
+                                    <span id="ind_eval_rating_label" style="color:var(--primary);">88/100</span>
+                                </div>
+                                <div class="rating-bar">
+                                    <div class="rating-fill" id="ind_eval_rating_fill" style="width: 88%;"></div>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary" onclick="openEvaluationModal()" style="width:100%; justify-content:center;">Edit Appraisal Grade</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Supervisor Verify Logbook -->
+                <section class="view-section" id="industry_signoff_view">
+                    <div class="card-header" style="margin-bottom: 1.5rem;">
+                        <div>
+                            <h4 class="card-title">Pending Daily Sign-Offs</h4>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">Approve logbooks or request changes. Locations are cross-referenced below.</p>
+                        </div>
+                    </div>
+                    
+                    <div id="ind_pending_logs_container">
+                        <!-- Populated dynamically by app.js -->
+                    </div>
+                </section>
+
+                <!-- Tab: Supervisor History -->
+                <section class="view-section" id="industry_history_view">
+                    <div class="glass-card">
+                        <h4 class="card-title" style="margin-bottom:1.5rem">Appraised Logs & Comments</h4>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Work Log Summary</th>
+                                        <th>Status</th>
+                                        <th>My Review Feedback</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ind_history_table">
+                                    <!-- Populated dynamically by app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- ========================================== -->
+                <!-- SCHOOL SUPERVISOR VIEWS                    -->
+                <!-- ========================================== -->
+                
+                <!-- Tab: School Students List -->
+                <section class="view-section" id="school_students_view">
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <div>
+                                <h4 class="card-title">Assigned Students</h4>
+                                <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">Monitor your assigned student interns and click Assess to input marks.</p>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Internship Center</th>
+                                        <th>Attendance Compliance</th>
+                                        <th>Logs Verified</th>
+                                        <th>Academic Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sch_students_list">
+                                    <!-- Populated dynamically by app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Academic Grading Detail -->
+                <section class="view-section" id="school_grading_view">
+                    <div class="dashboard-grid">
+                        <div class="glass-card">
+                            <h4 class="card-title" style="margin-bottom:1.5rem">Assessment Dashboard</h4>
+                            <div class="info-row"><span class="info-label">Intern Name:</span><span class="info-value" id="sch_grad_name">--</span></div>
+                            <div class="info-row"><span class="info-label">Matric Number:</span><span class="info-value" id="sch_grad_matric">--</span></div>
+                            <div class="info-row"><span class="info-label">Company Placement:</span><span class="info-value" id="sch_grad_company">--</span></div>
+                            
+                            <h5 style="margin-top:2rem; margin-bottom:0.75rem; color:var(--primary);">SIWES Performance Checks</h5>
+                            <div class="info-row"><span class="info-label">Punctuality Score:</span><span class="info-value" id="sch_metric_attendance">--</span></div>
+                            <div class="info-row"><span class="info-label">Geofence Violations:</span><span class="info-value" id="sch_metric_flags">--</span></div>
+                            <div class="info-row"><span class="info-label">Industry Assessment:</span><span class="info-value" id="sch_metric_industry">--</span></div>
+                        </div>
+
+                        <!-- Grading Panel -->
+                        <div class="glass-card">
+                            <h4 class="card-title">Submit Academic Grading</h4>
+                            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:1.5rem; margin-top:2px;">Determine the student's final grade and logbook assessment remarks.</p>
+                            
+                            <div style="margin-bottom:1.5rem;">
+                                <div class="info-row"><span class="info-label">Current Academic Grade:</span><span class="info-value" id="sch_eval_grade_val" style="color:var(--primary); font-size:1.15rem;">--</span></div>
+                                <div style="margin-top:0.75rem; padding: 0.75rem; background:rgba(255,255,255,0.02); border:1px solid var(--border-color); border-radius:12px; font-size:0.82rem; color:var(--text-secondary);" id="sch_eval_feedback">
+                                    No remarks submitted.
+                                </div>
+                            </div>
+                            
+                            <button class="btn btn-primary" onclick="openAcademicGradeModal()" style="width:100%; justify-content:center;">Grade Internship Logbook</button>
+                        </div>
+                    </div>
+
+                    <!-- Detailed logs list -->
+                    <div class="glass-card">
+                        <h4 class="card-title" style="margin-bottom:1rem">Daily Journal History Timeline</h4>
+                        <div id="sch_logs_accordion" style="max-height:400px; overflow-y:auto; padding-right:0.5rem;">
+                            <!-- Populated dynamically by app.js -->
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- ========================================== -->
+                <!-- COORDINATOR VIEWS                          -->
+                <!-- ========================================== -->
+                
+                <!-- Tab: Coordinator Stats Dashboard -->
+                <section class="view-section" id="coordinator_dashboard_view">
+                    <div class="stats-grid">
+                        <div class="glass-card card-primary">
+                            <div class="stat-header">
+                                <span class="stat-title">Interns Enrolled</span>
+                                <div class="stat-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+                            </div>
+                            <div class="stat-value" id="co_total_students">1</div>
+                            <div class="stat-desc">Active in 400L CS Dept</div>
+                        </div>
+                        <div class="glass-card card-primary">
+                            <div class="stat-header">
+                                <span class="stat-title">Avg Attendance</span>
+                                <div class="stat-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+                            </div>
+                            <div class="stat-value" id="co_avg_attendance">94%</div>
+                            <div class="stat-desc">Target Average > 80%</div>
+                        </div>
+                        <div class="glass-card card-primary">
+                            <div class="stat-header">
+                                <span class="stat-title">Companies Placement</span>
+                                <div class="stat-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                            </div>
+                            <div class="stat-value" id="co_active_companies">1</div>
+                            <div class="stat-desc">Tech organizations registered</div>
+                        </div>
+                        <div class="glass-card card-danger">
+                            <div class="stat-header">
+                                <span class="stat-title">System Geo-Flags</span>
+                                <div class="stat-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+                            </div>
+                            <div class="stat-value" id="co_alert_flags" style="color:var(--danger)">1</div>
+                            <div class="stat-desc">Urgent reviews required</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+                        <div class="glass-card" style="min-height: 320px;">
+                            <h4 class="card-title" style="margin-bottom: 1rem;">Daily Attendance Trend</h4>
+                            <div style="position: relative; height: 230px; width: 100%;">
+                                <canvas id="attendanceTrendChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="glass-card" style="min-height: 320px;">
+                            <h4 class="card-title" style="margin-bottom: 1rem;">Punctuality & Geofencing</h4>
+                            <div style="position: relative; height: 230px; width: 100%;">
+                                <canvas id="punctualityChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="glass-card" style="min-height: 320px;">
+                            <h4 class="card-title" style="margin-bottom: 1rem;">Logbook Verification Progress</h4>
+                            <div style="position: relative; height: 230px; width: 100%;">
+                                <canvas id="logbookChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card">
+                        <h4 class="card-title" style="margin-bottom:1.5rem">Student Placements Overview</h4>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Placement Center</th>
+                                        <th>Total Days</th>
+                                        <th>Late/Flagged</th>
+                                        <th>Signed Daily Logs</th>
+                                        <th>Assigned Supervisor</th>
+                                        <th>Grade status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="co_students_stats_table">
+                                    <!-- Populated dynamically by app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Supervisor Student Mapping Pairs -->
+                <section class="view-section" id="coordinator_mapping_view">
+                    <div class="dashboard-grid">
+                        <div class="glass-card">
+                            <h4 class="card-title" style="margin-bottom:1rem">Assign Academic Supervisor</h4>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.5rem;">Match registered student interns with academic supervisors for grading.</p>
+                            
+                            <form onsubmit="assignSupervisorPair(event)">
+                                <div class="form-group">
+                                    <label class="form-label" for="pairStudentSelect">Select Internship Student</label>
+                                    <select id="pairStudentSelect" class="form-control">
+                                        <!-- Loaded dynamically -->
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom:1.75rem;">
+                                    <label class="form-label" for="pairSupervisorSelect">Assign Faculty Supervisor</label>
+                                    <select id="pairSupervisorSelect" class="form-control">
+                                        <!-- Loaded dynamically -->
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Establish Supervision Link</button>
+                            </form>
+                        </div>
+                        
+                        <div class="glass-card">
+                            <h4 class="card-title" style="margin-bottom:1rem">Information & Guidelines</h4>
+                            <p style="font-size:0.88rem; line-height:1.6; color:var(--text-secondary);">
+                                Only assigned academic supervisors can grade the students' logbooks and submit marks to the university senate portal. 
+                                <br><br>
+                                Coordinators can override supervision links at any time to balance workloads. Currently registered supervisor allocation quota: <strong>1 student per supervisor max</strong>.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tab: Exports -->
+                <section class="view-section" id="coordinator_reports_view">
+                    <div class="glass-card">
+                        <h4 class="card-title" style="margin-bottom:1.5rem">Download System Reports</h4>
+                        
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:1.5rem;">
+                            <!-- Export Card 1 -->
+                            <div class="glass-card" style="background:rgba(255,255,255,0.02)">
+                                <h5 style="font-size:1.05rem; margin-bottom:0.5rem; color:var(--primary)">Placement Registry</h5>
+                                <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:1.5rem;">Download list of students, companies, supervisors, and scores.</p>
+                                <div class="info-row"><span class="info-label">Active Records:</span><span class="info-value" id="export_total_students">1</span></div>
+                                <button class="btn btn-primary btn-sm" onclick="exportData('students')" style="margin-top:1.25rem; width:100%; justify-content:center;">Export CSV</button>
+                            </div>
+                            
+                            <!-- Export Card 2 -->
+                            <div class="glass-card" style="background:rgba(255,255,255,0.02)">
+                                <h5 style="font-size:1.05rem; margin-bottom:0.5rem; color:var(--primary)">Attendance Registers</h5>
+                                <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:1.5rem;">Export full daily clock-in registry containing GPS coordinates and distances.</p>
+                                <div class="info-row"><span class="info-label">Attendance Records:</span><span class="info-value" id="export_total_attendance">5</span></div>
+                                <button class="btn btn-primary btn-sm" onclick="exportData('attendance')" style="margin-top:1.25rem; width:100%; justify-content:center;">Export CSV</button>
+                            </div>
+                            
+                            <!-- Export Card 3 -->
+                            <div class="glass-card" style="background:rgba(255,255,255,0.02)">
+                                <h5 style="font-size:1.05rem; margin-bottom:0.5rem; color:var(--primary)">Consolidated Logbook</h5>
+                                <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:1.5rem;">Download combined logbook records including descriptions and supervisor comments.</p>
+                                <div class="info-row"><span class="info-label">Logbook Entries:</span><span class="info-value" id="export_total_logs">5</span></div>
+                                <button class="btn btn-primary btn-sm" onclick="exportData('logbook')" style="margin-top:1.25rem; width:100%; justify-content:center;">Export CSV</button>
+                            </div>
+
+                            <!-- Export Card 4 -->
+                            <div class="glass-card" style="background:rgba(255,255,255,0.02); border: 1px dashed var(--primary-glow);">
+                                <h5 style="font-size:1.05rem; margin-bottom:0.5rem; color:var(--primary)">Executive PDF Report</h5>
+                                <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:1.5rem;">Generate and download a comprehensive, print-ready PDF summary of all interns.</p>
+                                <div class="info-row"><span class="info-label">Format:</span><span class="info-value">A4 Document PDF</span></div>
+                                <button class="btn btn-primary btn-sm" id="downloadPdfBtn" onclick="generatePDFReport()" style="margin-top:1.25rem; width:100%; justify-content:center; gap: 8px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                                    <span>Download PDF Report</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+
+    <!-- ========================================== -->
+    <!-- MODAL OVERLAYS                             -->
+    <!-- ========================================== -->
+    
+    <!-- Modal: Add Daily Logbook Entry -->
+    <div class="modal-backdrop" id="addLogModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">New Daily Log Entry</h4>
+                <button class="modal-close" onclick="closeModal('addLogModal')">&times;</button>
+            </div>
+            <form onsubmit="submitNewLog(event)">
+                <div class="form-group">
+                    <label class="form-label" for="logDate">Date</label>
+                    <input type="date" id="logDate" class="form-control" required readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="logHours">Hours Worked</label>
+                    <input type="number" id="logHours" class="form-control" min="1" max="12" value="8" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="logTools">Tools / Technologies Used</label>
+                    <input type="text" id="logTools" class="form-control" placeholder="e.g. React, Git, Python" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="logDescription">Detailed Activity Description</label>
+                    <textarea id="logDescription" class="form-control" placeholder="Explain what technical tasks you performed, problems faced, and how you solved them." required></textarea>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addLogModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Entry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Daily Log Details -->
+    <div class="modal-backdrop" id="logDetailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Daily Entry Details</h4>
+                <button class="modal-close" onclick="closeModal('logDetailModal')">&times;</button>
+            </div>
+            <div>
+                <div class="info-row"><span class="info-label">Date:</span><span class="info-value" id="modalDetailDate">--</span></div>
+                <div class="info-row"><span class="info-label">Hours Logged:</span><span class="info-value" id="modalDetailHours">--</span></div>
+                <div class="info-row"><span class="info-label">Tools Used:</span><span class="info-value"><code id="modalDetailTools">--</code></span></div>
+                <div class="info-row"><span class="info-label">Review Status:</span><span class="info-value"><span class="badge" id="modalDetailStatus">--</span></span></div>
+                
+                <h5 style="margin-top:1.5rem; margin-bottom:0.5rem; color:var(--primary);">Activity Description</h5>
+                <p style="font-size:0.88rem; line-height:1.5; color:var(--text-primary); padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius:12px;" id="modalDetailDesc">--</p>
+                
+                <div id="modalDetailFeedbackRow" style="margin-top:1.5rem; display:none;">
+                    <h5 style="margin-bottom:0.5rem; color:var(--success);">Supervisor Signature & Feedback</h5>
+                    <div style="padding:0.75rem; background:rgba(16, 185, 129, 0.05); border:1px solid rgba(16, 185, 129, 0.2); border-radius:12px;">
+                        <p style="font-size:0.85rem; color:var(--text-primary);" id="modalDetailFeedback">--</p>
+                        <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:0.5rem; text-align:right;">Signed by: <strong id="modalDetailSupervisor">--</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add Weekly Summary -->
+    <div class="modal-backdrop" id="addWeeklyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Draft Weekly Summary Report</h4>
+                <button class="modal-close" onclick="closeModal('addWeeklyModal')">&times;</button>
+            </div>
+            <form onsubmit="submitNewWeekly(event)">
+                <div class="form-group">
+                    <label class="form-label" for="weeklyWeekNo">Week Number</label>
+                    <input type="number" id="weeklyWeekNo" class="form-control" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="weeklySummary">Weekly Summary Description</label>
+                    <textarea id="weeklySummary" class="form-control" style="min-height:160px;" placeholder="Summarize your progress, tasks completed, milestones, and challenges encountered during the entire week." required></textarea>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addWeeklyModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Weekly Report Details -->
+    <div class="modal-backdrop" id="weeklyDetailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="modalWeeklyTitle">Weekly Report Details</h4>
+                <button class="modal-close" onclick="closeModal('weeklyDetailModal')">&times;</button>
+            </div>
+            <div>
+                <h5 style="margin-bottom:0.5rem; color:var(--primary);">Weekly Summary</h5>
+                <p style="font-size:0.88rem; line-height:1.5; color:var(--text-primary); padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius:12px; margin-bottom:1.5rem;" id="modalWeeklySummary">--</p>
+                
+                <div id="modalWeeklyScoreRow" style="display:none;">
+                    <h5 style="margin-bottom:0.5rem; color:var(--success);">Supervisor Assessment & Grade</h5>
+                    <div style="padding:0.75rem; background:rgba(16, 185, 129, 0.05); border:1px solid rgba(16, 185, 129, 0.2); border-radius:12px;">
+                        <div class="info-row" style="border:none; padding:0 0 0.5rem 0"><span class="info-label">Supervisor Score:</span><span class="info-value" id="modalWeeklyRating" style="color:var(--success)">--</span></div>
+                        <p style="font-size:0.85rem; color:var(--text-primary);" id="modalWeeklyFeedback">--</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Industry Evaluation Grade -->
+    <div class="modal-backdrop" id="indEvaluationModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Submit Student Performance Rating</h4>
+                <button class="modal-close" onclick="closeModal('indEvaluationModal')">&times;</button>
+            </div>
+            <form onsubmit="submitEvaluation(event)">
+                <div class="form-group">
+                    <label class="form-label" for="evalGrade">Overall Performance Percentage Grade (0 - 100)</label>
+                    <input type="number" id="evalGrade" class="form-control" min="0" max="100" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="evalRemarks">Detailed Qualitative Feedback Remarks</label>
+                    <textarea id="evalRemarks" class="form-control" style="min-height:120px;" placeholder="Appraise technical competence, work ethic, punctuality, and area of improvements." required></textarea>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('indEvaluationModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Assessment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: School Academic Grading -->
+    <div class="modal-backdrop" id="schGradingModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Finalize Academic Grading Score</h4>
+                <button class="modal-close" onclick="closeModal('schGradingModal')">&times;</button>
+            </div>
+            <form onsubmit="submitAcademicGrade(event)">
+                <div class="form-group">
+                    <label class="form-label" for="gradeSelect">Select Final Letter Grade</label>
+                    <select id="gradeSelect" class="form-control">
+                        <option value="A">A (Excellent, 70%+)</option>
+                        <option value="B">B (Very Good, 60-69%)</option>
+                        <option value="C">C (Good, 50-59%)</option>
+                        <option value="D">D (Pass, 45-49%)</option>
+                        <option value="F">F (Fail, &lt;45%)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="academicFeedback">Faculty Inspection Remarks</label>
+                    <textarea id="academicFeedback" class="form-control" style="min-height:120px;" placeholder="Submit assessment remarks based on student defense, logbook accuracy, and location check-in compliance audits." required></textarea>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('schGradingModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Grade</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- FLOATING DEMO CONTROL PANEL -->
+    <div class="demo-control-panel">
+        <div class="demo-panel" id="demoPanel">
+            <h4>Examiner Demo Controls</h4>
+            
+            <div class="demo-section-title">Select Active User Role</div>
+            <div class="demo-roles">
+                <button class="btn-demo-role active" data-role="student">Student</button>
+                <button class="btn-demo-role" data-role="industry_supervisor">Ind. Supervisor</button>
+                <button class="btn-demo-role" data-role="school_supervisor">Sch. Supervisor</button>
+                <button class="btn-demo-role" data-role="coordinator">Coordinator</button>
+            </div>
+            
+            <div class="demo-section-title">GPS Location Simulator</div>
+            <div class="gps-selector">
+                <div class="gps-option active" data-mode="office">
+                    <span class="gps-option-label">At Internship Office</span>
+                    <span class="gps-option-status">Within Range</span>
+                </div>
+                <div class="gps-option" data-mode="home">
+                    <span class="gps-option-label">At Home / Off-site</span>
+                    <span class="gps-option-status">2.2km Away</span>
+                </div>
+                <div class="gps-option" data-mode="actual">
+                    <span class="gps-option-label">Actual Device GPS</span>
+                    <span class="gps-option-status">Browser API</span>
+                </div>
+            </div>
+            
+            <div style="font-size:0.65rem; color:var(--text-muted); margin-top:1rem; line-height:1.3; text-align:center;">
+                Simulate different roles and locations instantly to test client-side geofencing controls.
+            </div>
+        </div>
+        
+        <button class="demo-trigger" id="demoTrigger" title="Open demo panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:24px; height:24px;">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v2m0 16v2M4 12H2m20 0h-2m-2.05-8.05l-1.42 1.42M7.47 16.53l-1.42 1.42m10.48 0l1.42-1.42M7.47 7.47L6.05 6.05"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script src="app.js"></script>
+</body>
+</html>
