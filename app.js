@@ -132,10 +132,14 @@ async function syncFromBackend() {
                 logbook: backendData.logbook,
                 weeklyReports: backendData.weeklyReports,
                 supervisors: backendData.supervisors,
-                schoolSupervisors: backendData.schoolSupervisors
+                schoolSupervisors: backendData.schoolSupervisors,
+                notifications: backendData.notifications || []
             };
             saveDB(mappedData);
-            console.log("Synced data from SQLite Server successfully.");
+            console.log("Synced data from live Supabase Server successfully.");
+            
+            // Render notifications badge and list
+            renderNotifications();
         }
     } catch (err) {
         console.warn("Error syncing from backend, using localStorage fallback:", err);
@@ -2135,5 +2139,124 @@ function toggleSidebar() {
     }
     if (backdrop) {
         backdrop.classList.toggle("show");
+    }
+}
+
+// --- IN-APP NOTIFICATIONS ENGINE ---
+
+function toggleNotifDrawer() {
+    const drawer = document.getElementById("notifDrawer");
+    const backdrop = document.getElementById("notifBackdrop");
+    if (!drawer) return;
+    
+    if (drawer.style.right === "0px") {
+        drawer.style.right = "-360px";
+        backdrop.style.display = "none";
+    } else {
+        drawer.style.right = "0px";
+        backdrop.style.display = "block";
+    }
+}
+
+function renderNotifications() {
+    const db = getDB();
+    const badge = document.getElementById("notifBadge");
+    const countText = document.getElementById("notifCountText");
+    const container = document.getElementById("notifListContainer");
+    if (!container) return;
+    
+    const notifications = db.notifications || [];
+    
+    // Filter notifications for current user session
+    const myNotifs = notifications.filter(n => {
+        if (state.activeRole === "coordinator" && n.role === "coordinator") return true;
+        if (state.activeRole === "industry_supervisor" && n.role === "industry_supervisor" && n.userId === state.currentSupervisorId) return true;
+        if (state.activeRole === "school_supervisor" && n.role === "school_supervisor" && n.userId === state.currentSupervisorId) return true;
+        if (state.activeRole === "student" && n.role === "student" && n.userId === state.currentMatric) return true;
+        return false;
+    });
+    
+    const unreadCount = myNotifs.filter(n => !n.read).length;
+    
+    // Render count badge
+    if (badge) {
+        if (unreadCount > 0) {
+            badge.textContent = unreadCount;
+            badge.style.display = "flex";
+        } else {
+            badge.style.display = "none";
+        }
+    }
+    
+    if (countText) {
+        countText.textContent = `${unreadCount} unread alerts`;
+    }
+    
+    container.innerHTML = "";
+    if (myNotifs.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding: 2rem; color: var(--text-secondary); font-size:0.85rem;">No alerts found.</div>`;
+        return;
+    }
+    
+    myNotifs.forEach(n => {
+        const item = document.createElement("div");
+        item.style.padding = "0.75rem";
+        item.style.borderRadius = "8px";
+        item.style.background = n.read ? "rgba(255,255,255,0.02)" : "rgba(59, 130, 246, 0.08)";
+        item.style.border = n.read ? "1px solid rgba(255,255,255,0.04)" : "1px solid rgba(59, 130, 246, 0.15)";
+        item.style.fontSize = "0.82rem";
+        item.style.lineHeight = "1.4";
+        
+        let typeLabel = "";
+        if (n.type === 'registration') typeLabel = `<span style="color:var(--primary); font-weight:700; margin-right:4px;">👤 Registration:</span>`;
+        else if (n.type === 'clock_in') typeLabel = `<span style="color:var(--success); font-weight:700; margin-right:4px;">⏰ Clock In:</span>`;
+        else if (n.type === 'log_submission') typeLabel = `<span style="color:var(--warning); font-weight:700; margin-right:4px;">📝 Logbook:</span>`;
+        else if (n.type === 'log_verification') typeLabel = `<span style="color:var(--primary); font-weight:700; margin-right:4px;">✍️ Verification:</span>`;
+        
+        const dateObj = new Date(n.createdAt);
+        const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        
+        item.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <div>${typeLabel}${n.message}</div>
+                <div style="font-size:0.7rem; color:var(--text-muted); text-align:right;">${dateStr}, ${timeStr}</div>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+async function markAllNotificationsRead() {
+    const db = getDB();
+    const notifications = db.notifications || [];
+    
+    const myUnread = notifications.filter(n => {
+        if (n.read) return false;
+        if (state.activeRole === "coordinator" && n.role === "coordinator") return true;
+        if (state.activeRole === "industry_supervisor" && n.role === "industry_supervisor" && n.userId === state.currentSupervisorId) return true;
+        if (state.activeRole === "school_supervisor" && n.role === "school_supervisor" && n.userId === state.currentSupervisorId) return true;
+        if (state.activeRole === "student" && n.role === "student" && n.userId === state.currentMatric) return true;
+        return false;
+    });
+    
+    if (myUnread.length === 0) return;
+    
+    const ids = myUnread.map(n => n.id);
+    
+    // Clear locally
+    myUnread.forEach(n => n.read = true);
+    saveDB(db);
+    renderNotifications();
+    
+    // Clear on server
+    try {
+        await fetch(`${API_BASE}/notifications/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+    } catch (e) {
+        console.error("Failed to mark notifications read on server:", e.message);
     }
 }

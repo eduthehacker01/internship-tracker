@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
@@ -24,37 +23,6 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Create Nodemailer transporter using Gmail SMTP
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
-
-function shouldSendRealEmail(email) {
-    if (!email) return false;
-    const lower = email.toLowerCase().trim();
-    const demoDomains = ['@techcorp.com', '@university.edu.ng', '@siwes.com', '@example.com'];
-    return !demoDomains.some(domain => lower.endsWith(domain));
-}
-
-function sendEmail(to, subject, html) {
-    if (!shouldSendRealEmail(to)) {
-        console.log(`[SIMULATED EMAIL] To: ${to} | Subject: ${subject} (Skipped SMTP send to prevent Gmail inbox bounces)`);
-        return Promise.resolve({ message: "Simulated email processed successfully" });
-    }
-    
-    const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to,
-        subject,
-        html,
-    };
-    return transporter.sendMail(mailOptions);
-}
 
 // Auto Seed Supabase DB with default records if empty
 async function seedSupabaseIfNeeded() {
@@ -140,6 +108,11 @@ async function seedSupabaseIfNeeded() {
             // 6. Seed School Supervisors
             await supabase.from('school_supervisors').insert([
                 { id: 'SS_01', name: 'Dr. Festus Alao', dept: 'Computer Science', email: 'f.alao@university.edu.ng', password: 'password123' }
+            ]);
+
+            // 7. Seed Initial Notifications
+            await supabase.from('notifications').insert([
+                { userId: 'IS_01', role: 'industry_supervisor', message: 'Welcome to the SIWES Portal! You can now track Chinedu Azubuike.', type: 'registration' }
             ]);
 
             console.log("Supabase database successfully seeded with initial parameters.");
@@ -256,6 +229,10 @@ app.get('/api/data', async (req, res) => {
         const { data: weekly } = await supabase.from('weekly_reports').select('*');
         const { data: supervisors } = await supabase.from('supervisors').select('*');
         const { data: schoolSupervisors } = await supabase.from('school_supervisors').select('*');
+        const { data: notifications } = await supabase
+            .from('notifications')
+            .select('*')
+            .order('createdAt', { ascending: false });
 
         res.json({
             students: students || [],
@@ -263,7 +240,8 @@ app.get('/api/data', async (req, res) => {
             logbook: logbook || [],
             weeklyReports: weekly || [],
             supervisors: supervisors || [],
-            schoolSupervisors: schoolSupervisors || []
+            schoolSupervisors: schoolSupervisors || [],
+            notifications: notifications || []
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -286,28 +264,16 @@ app.post('/api/students', async (req, res) => {
 
         if (error) throw error;
 
-        // Email coordinator
-        const mailSubject = `SIWES Portal: New Intern Registered - ${name}`;
-        const mailHtml = `
-            <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px;">
-                <h2 style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">New Intern Registered</h2>
-                <p>Hello Coordinator,</p>
-                <p>A new student has registered on the SIWES Internship Portal:</p>
-                <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-                    <tr style="background-color: #f8fafc;"><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Name</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${name}</td></tr>
-                    <tr><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Matric No</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${matric}</td></tr>
-                    <tr style="background-color: #f8fafc;"><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Department</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${dept} (${level})</td></tr>
-                    <tr><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Company</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${company}</td></tr>
-                    <tr style="background-color: #f8fafc;"><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Office GPS</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${officeLat}, ${officeLon} (Radius: ${geofenceRadius}m)</td></tr>
-                    <tr><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Industry Supervisor</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${industrySupervisor}</td></tr>
-                </table>
-                <p style="margin-top: 20px; font-size: 0.9em; color: #64748b;">This notification is sent automatically by the SIWES Portal.</p>
-            </div>
-        `;
-        // Send email to coordinator
-        sendEmail('coordinator@university.edu.ng', mailSubject, mailHtml)
-            .then(() => console.log(`New registration email sent for ${name}`))
-            .catch(e => console.error("Email send failed:", e.message));
+        // In-App Notification for Coordinator
+        await supabase.from('notifications').insert([
+            {
+                matric,
+                userId: 'CO_01',
+                role: 'coordinator',
+                message: `New Intern Registered: ${name} (${matric}) placed at ${company}.`,
+                type: 'registration'
+            }
+        ]);
 
         res.json({ success: true, message: "Student registered successfully in Supabase database" });
     } catch (err) {
@@ -334,38 +300,29 @@ app.post('/api/attendance/clock-in', async (req, res) => {
             .single();
 
         if (!studentErr && student) {
-            // Retrieve supervisor's actual email
-            let recipientEmail = 'coordinator@university.edu.ng'; // fallback
+            // Retrieve supervisor's ID to route the notification
+            let supervisorId = 'CO_01'; // Default coordinator fallback
             if (student.industrySupervisor) {
                 const { data: supervisor } = await supabase
                     .from('supervisors')
-                    .select('email')
+                    .select('id')
                     .eq('name', student.industrySupervisor)
                     .maybeSingle();
-                if (supervisor && supervisor.email) {
-                    recipientEmail = supervisor.email;
+                if (supervisor) {
+                    supervisorId = supervisor.id;
                 }
             }
 
-            const mailSubject = `SIWES Attendance Alert: ${student.name} Clocks In`;
-            const mailHtml = `
-                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px;">
-                    <h2 style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">SIWES Daily Attendance Notification</h2>
-                    <p>Hello <strong>${student.industrySupervisor || 'Supervisor'}</strong>,</p>
-                    <p>This is to inform you that your intern has clocked in for the day.</p>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-                        <tr style="background-color: #f8fafc;"><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Intern Name</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${student.name}</td></tr>
-                        <tr><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Matric No</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${matric}</td></tr>
-                        <tr style="background-color: #f8fafc;"><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Clock-in Time</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${clockIn}</td></tr>
-                        <tr><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Status</td><td style="padding: 8px; border: 1px solid #e2e8f0;"><span style="color: ${status === 'On-Time' ? '#10b981' : '#f59e0b'}; font-weight: bold;">${status}</span></td></tr>
-                        <tr style="background-color: #f8fafc;"><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Geofence</td><td style="padding: 8px; border: 1px solid #e2e8f0;"><span style="color: ${geofence.includes('Within') ? '#10b981' : '#ef4444'}; font-weight: bold;">${geofence}</span> (Dist: ${Math.round(distance)}m)</td></tr>
-                    </table>
-                    <p style="margin-top: 20px; font-size: 0.9em; color: #64748b;">This notification is sent automatically by the SIWES Portal.</p>
-                </div>
-            `;
-            sendEmail(recipientEmail, mailSubject, mailHtml)
-                .then(() => console.log(`Clock-in notification email sent to ${recipientEmail} for ${student.name}`))
-                .catch(e => console.error("Email send failed:", e.message));
+            // Create In-App Notification for Supervisor
+            await supabase.from('notifications').insert([
+                {
+                    matric,
+                    userId: supervisorId,
+                    role: supervisorId === 'CO_01' ? 'coordinator' : 'industry_supervisor',
+                    message: `${student.name} clocked in ${status} at ${clockIn} (${geofence}, Dist: ${Math.round(distance)}m).`,
+                    type: 'clock_in'
+                }
+            ]);
         }
 
         res.json({ success: true, message: "Clock-in recorded in Supabase database" });
@@ -410,39 +367,29 @@ app.post('/api/logbook', async (req, res) => {
             .single();
 
         if (!studentErr && student) {
-            // Retrieve supervisor's actual email
-            let recipientEmail = 'coordinator@university.edu.ng'; // fallback
+            // Retrieve supervisor's ID to route the notification
+            let supervisorId = 'CO_01'; // Default coordinator fallback
             if (student.industrySupervisor) {
                 const { data: supervisor } = await supabase
                     .from('supervisors')
-                    .select('email')
+                    .select('id')
                     .eq('name', student.industrySupervisor)
                     .maybeSingle();
-                if (supervisor && supervisor.email) {
-                    recipientEmail = supervisor.email;
+                if (supervisor) {
+                    supervisorId = supervisor.id;
                 }
             }
 
-            const mailSubject = `SIWES Logbook: Daily Log Submitted by ${student.name}`;
-            const mailHtml = `
-                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px;">
-                    <h2 style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">Daily Logbook Submission</h2>
-                    <p>Hello <strong>${student.industrySupervisor || 'Supervisor'}</strong>,</p>
-                    <p>A new daily log entry has been submitted for review by <strong>${student.name}</strong>.</p>
-                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; margin: 15px 0;">
-                        <p><strong>Date:</strong> ${date}</p>
-                        <p><strong>Hours Worked:</strong> ${hours} hours</p>
-                        <p><strong>Tools Used:</strong> ${tools}</p>
-                        <p><strong>Description of Tasks:</strong></p>
-                        <p style="white-space: pre-wrap; color: #334155;">${description}</p>
-                    </div>
-                    <p>Please log in to the SIWES Portal to verify and approve this entry.</p>
-                    <p style="margin-top: 20px; font-size: 0.9em; color: #64748b;">This notification is sent automatically by the SIWES Portal.</p>
-                </div>
-            `;
-            sendEmail(recipientEmail, mailSubject, mailHtml)
-                .then(() => console.log(`Logbook submission email sent to ${recipientEmail} for ${student.name}`))
-                .catch(e => console.error("Email send failed:", e.message));
+            // Create In-App Notification for Supervisor
+            await supabase.from('notifications').insert([
+                {
+                    matric,
+                    userId: supervisorId,
+                    role: supervisorId === 'CO_01' ? 'coordinator' : 'industry_supervisor',
+                    message: `${student.name} submitted daily logbook details for ${date} (${hours}h, Tools: ${tools}).`,
+                    type: 'log_submission'
+                }
+            ]);
         }
 
         res.json({ success: true, message: "Daily log entry added to Supabase database" });
@@ -466,30 +413,21 @@ app.post('/api/logbook/verify', async (req, res) => {
         // Fetch student details
         const { data: student, error: studentErr } = await supabase
             .from('students')
-            .select('name, email')
+            .select('name')
             .eq('matric', matric)
             .single();
 
         if (!studentErr && student) {
-            let studentEmail = student.email || 'coordinator@university.edu.ng'; // fallback
-
-            const mailSubject = `SIWES Logbook: Log entry for ${date} has been ${status}`;
-            const mailHtml = `
-                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px;">
-                    <h2 style="color: ${status === 'Approved' ? '#10b981' : '#ef4444'}; border-bottom: 2px solid ${status === 'Approved' ? '#10b981' : '#ef4444'}; padding-bottom: 10px;">Logbook Status Update</h2>
-                    <p>Hello <strong>${student.name}</strong>,</p>
-                    <p>Your daily logbook entry for <strong>${date}</strong> has been reviewed by your supervisor.</p>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-                        <tr style="background-color: #f8fafc;"><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Status</td><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold; color: ${status === 'Approved' ? '#10b981' : '#ef4444'};">${status}</td></tr>
-                        <tr><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Feedback</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${feedback || 'No feedback provided'}</td></tr>
-                        <tr style="background-color: #f8fafc;"><td style="padding: 8px; border: 1px solid #e2e8f0; font-weight: bold;">Signed By</td><td style="padding: 8px; border: 1px solid #e2e8f0;">${signedBy}</td></tr>
-                    </table>
-                    <p style="margin-top: 20px; font-size: 0.9em; color: #64748b;">This notification is sent automatically by the SIWES Portal.</p>
-                </div>
-            `;
-            sendEmail(studentEmail, mailSubject, mailHtml)
-                .then(() => console.log(`Logbook verification email sent to student ${student.name} at ${studentEmail}`))
-                .catch(e => console.error("Email send failed:", e.message));
+            // Create In-App Notification for the Student
+            await supabase.from('notifications').insert([
+                {
+                    matric,
+                    userId: matric,
+                    role: 'student',
+                    message: `Your daily log entry for ${date} was ${status}. Feedback: "${feedback || 'No feedback'}" (Signed by: ${signedBy}).`,
+                    type: 'log_verification'
+                }
+            ]);
         }
 
         res.json({ success: true, message: "Logbook entry status updated in Supabase database" });
@@ -560,6 +498,22 @@ app.post('/api/student/assign', async (req, res) => {
 
         if (error) throw error;
         res.json({ success: true, message: "Academic supervisor mapping saved to Supabase database" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 11. Notifications: Mark as Read
+app.post('/api/notifications/read', async (req, res) => {
+    const { ids } = req.body;
+    try {
+        const { error } = await supabase
+            .from('notifications')
+            .update({ read: true })
+            .in('id', ids);
+
+        if (error) throw error;
+        res.json({ success: true, message: "Notifications marked as read" });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
