@@ -427,11 +427,14 @@ function handleLogout() {
     renderAuthOrShell();
 }
 
-function renderAuthOrShell() {
+async function renderAuthOrShell() {
     const authScreen = document.getElementById("authScreen");
     const appShell = document.getElementById("appShell");
     
     if (state.isLoggedIn) {
+        // Sync latest database records from Supabase server
+        await syncFromBackend();
+        
         authScreen.style.display = "none";
         appShell.style.display = "flex";
         
