@@ -73,7 +73,9 @@ async function seedSupabaseIfNeeded() {
                     officeLon: 3.421944, 
                     geofenceRadius: 200, 
                     industrySupervisor: 'Engr. Sarah Jenkins', 
-                    schoolSupervisor: 'Dr. Festus Alao', 
+                    schoolSupervisor: 'Dr. Festus Alao',
+                    email: 'chinedu@example.com',
+                    password: 'password123',
                     academicGrade: null, 
                     academicFeedback: '', 
                     evaluationGrade: 88, 
@@ -120,12 +122,12 @@ async function seedSupabaseIfNeeded() {
 
             // 5. Seed Supervisors
             await supabase.from('supervisors').insert([
-                { id: 'IS_01', name: 'Engr. Sarah Jenkins', company: 'TechCorp Solutions Ltd', email: 's.jenkins@techcorp.com' }
+                { id: 'IS_01', name: 'Engr. Sarah Jenkins', company: 'TechCorp Solutions Ltd', email: 's.jenkins@techcorp.com', password: 'password123' }
             ]);
 
             // 6. Seed School Supervisors
             await supabase.from('school_supervisors').insert([
-                { id: 'SS_01', name: 'Dr. Festus Alao', dept: 'Computer Science', email: 'f.alao@university.edu.ng' }
+                { id: 'SS_01', name: 'Dr. Festus Alao', dept: 'Computer Science', email: 'f.alao@university.edu.ng', password: 'password123' }
             ]);
 
             console.log("Supabase database successfully seeded with initial parameters.");
@@ -142,6 +144,95 @@ async function seedSupabaseIfNeeded() {
 // 1. Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: "ok", message: "Supabase PG Cloud server is active" });
+});
+
+// 1.5 Unified authentication endpoint
+app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        // Check Coordinator
+        if (email.toLowerCase() === 'coordinator@university.edu.ng' && password === 'password123') {
+            return res.json({
+                success: true,
+                role: 'coordinator',
+                id: 'CO_01',
+                name: 'Prof. Ebuka Obi',
+                email: 'coordinator@university.edu.ng'
+            });
+        }
+
+        // Check Students
+        const { data: student } = await supabase
+            .from('students')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (student) {
+            if (student.password === password) {
+                return res.json({
+                    success: true,
+                    role: 'student',
+                    id: student.matric,
+                    name: student.name,
+                    email: student.email,
+                    matric: student.matric
+                });
+            } else {
+                return res.status(401).json({ success: false, error: "Invalid credentials" });
+            }
+        }
+
+        // Check Industry Supervisors
+        const { data: supervisor } = await supabase
+            .from('supervisors')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (supervisor) {
+            if (supervisor.password === password) {
+                return res.json({
+                    success: true,
+                    role: 'industry_supervisor',
+                    id: supervisor.id,
+                    name: supervisor.name,
+                    company: supervisor.company,
+                    email: supervisor.email
+                });
+            } else {
+                return res.status(401).json({ success: false, error: "Invalid credentials" });
+            }
+        }
+
+        // Check School Supervisors
+        const { data: schoolSuper } = await supabase
+            .from('school_supervisors')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (schoolSuper) {
+            if (schoolSuper.password === password) {
+                return res.json({
+                    success: true,
+                    role: 'school_supervisor',
+                    id: schoolSuper.id,
+                    name: schoolSuper.name,
+                    dept: schoolSuper.dept,
+                    email: schoolSuper.email
+                });
+            } else {
+                return res.status(401).json({ success: false, error: "Invalid credentials" });
+            }
+        }
+
+        return res.status(401).json({ success: false, error: "User profile not found" });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // 2. Fetch all consolidated database states
@@ -169,12 +260,14 @@ app.get('/api/data', async (req, res) => {
 
 // 2.5 Student: Register a new student intern
 app.post('/api/students', async (req, res) => {
-    const { matric, name, dept, level, company, officeAddress, officeLat, officeLon, geofenceRadius, industrySupervisor, schoolSupervisor } = req.body;
+    const { matric, name, dept, level, company, officeAddress, officeLat, officeLon, geofenceRadius, industrySupervisor, schoolSupervisor, email, password } = req.body;
     
     try {
         const { error } = await supabase.from('students').insert([
             {
                 matric, name, dept, level, company, officeAddress, officeLat, officeLon, geofenceRadius, industrySupervisor, schoolSupervisor,
+                email: email || `${matric.toLowerCase().replace(/[^a-z0-9]/g, '')}@siwes.com`,
+                password: password || 'password123',
                 academicGrade: null, academicFeedback: '', evaluationGrade: null, evaluationRemarks: ''
             }
         ]);
@@ -199,7 +292,8 @@ app.post('/api/students', async (req, res) => {
                 <p style="margin-top: 20px; font-size: 0.9em; color: #64748b;">This notification is sent automatically by the SIWES Portal.</p>
             </div>
         `;
-        sendEmail(process.env.SUPERVISOR_EMAIL, mailSubject, mailHtml)
+        // Send email to coordinator
+        sendEmail('coordinator@university.edu.ng', mailSubject, mailHtml)
             .then(() => console.log(`New registration email sent for ${name}`))
             .catch(e => console.error("Email send failed:", e.message));
 
@@ -228,6 +322,19 @@ app.post('/api/attendance/clock-in', async (req, res) => {
             .single();
 
         if (!studentErr && student) {
+            // Retrieve supervisor's actual email
+            let recipientEmail = 'coordinator@university.edu.ng'; // fallback
+            if (student.industrySupervisor) {
+                const { data: supervisor } = await supabase
+                    .from('supervisors')
+                    .select('email')
+                    .eq('name', student.industrySupervisor)
+                    .maybeSingle();
+                if (supervisor && supervisor.email) {
+                    recipientEmail = supervisor.email;
+                }
+            }
+
             const mailSubject = `SIWES Attendance Alert: ${student.name} Clocks In`;
             const mailHtml = `
                 <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px;">
@@ -244,8 +351,8 @@ app.post('/api/attendance/clock-in', async (req, res) => {
                     <p style="margin-top: 20px; font-size: 0.9em; color: #64748b;">This notification is sent automatically by the SIWES Portal.</p>
                 </div>
             `;
-            sendEmail(process.env.SUPERVISOR_EMAIL, mailSubject, mailHtml)
-                .then(() => console.log(`Clock-in notification email sent for ${student.name}`))
+            sendEmail(recipientEmail, mailSubject, mailHtml)
+                .then(() => console.log(`Clock-in notification email sent to ${recipientEmail} for ${student.name}`))
                 .catch(e => console.error("Email send failed:", e.message));
         }
 
@@ -291,6 +398,19 @@ app.post('/api/logbook', async (req, res) => {
             .single();
 
         if (!studentErr && student) {
+            // Retrieve supervisor's actual email
+            let recipientEmail = 'coordinator@university.edu.ng'; // fallback
+            if (student.industrySupervisor) {
+                const { data: supervisor } = await supabase
+                    .from('supervisors')
+                    .select('email')
+                    .eq('name', student.industrySupervisor)
+                    .maybeSingle();
+                if (supervisor && supervisor.email) {
+                    recipientEmail = supervisor.email;
+                }
+            }
+
             const mailSubject = `SIWES Logbook: Daily Log Submitted by ${student.name}`;
             const mailHtml = `
                 <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px;">
@@ -308,8 +428,8 @@ app.post('/api/logbook', async (req, res) => {
                     <p style="margin-top: 20px; font-size: 0.9em; color: #64748b;">This notification is sent automatically by the SIWES Portal.</p>
                 </div>
             `;
-            sendEmail(process.env.SUPERVISOR_EMAIL, mailSubject, mailHtml)
-                .then(() => console.log(`Logbook submission email sent for ${student.name}`))
+            sendEmail(recipientEmail, mailSubject, mailHtml)
+                .then(() => console.log(`Logbook submission email sent to ${recipientEmail} for ${student.name}`))
                 .catch(e => console.error("Email send failed:", e.message));
         }
 
@@ -334,11 +454,13 @@ app.post('/api/logbook/verify', async (req, res) => {
         // Fetch student details
         const { data: student, error: studentErr } = await supabase
             .from('students')
-            .select('name')
+            .select('name, email')
             .eq('matric', matric)
             .single();
 
         if (!studentErr && student) {
+            let studentEmail = student.email || 'coordinator@university.edu.ng'; // fallback
+
             const mailSubject = `SIWES Logbook: Log entry for ${date} has been ${status}`;
             const mailHtml = `
                 <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px; max-width: 600px;">
@@ -353,8 +475,8 @@ app.post('/api/logbook/verify', async (req, res) => {
                     <p style="margin-top: 20px; font-size: 0.9em; color: #64748b;">This notification is sent automatically by the SIWES Portal.</p>
                 </div>
             `;
-            sendEmail(process.env.SUPERVISOR_EMAIL, mailSubject, mailHtml)
-                .then(() => console.log(`Logbook verification email sent for student ${student.name}`))
+            sendEmail(studentEmail, mailSubject, mailHtml)
+                .then(() => console.log(`Logbook verification email sent to student ${student.name} at ${studentEmail}`))
                 .catch(e => console.error("Email send failed:", e.message));
         }
 

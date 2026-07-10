@@ -188,6 +188,9 @@ const state = {
     activeTab: "overview", // changes based on role
     currentMatric: localStorage.getItem("current_session_matric") || "UI/2022/CS/101", 
     selectedStudentMatric: localStorage.getItem("current_session_matric") || "UI/2022/CS/101", // supervisor views
+    currentUserName: localStorage.getItem("current_session_name") || "Chinedu Azubuike",
+    currentUserEmail: localStorage.getItem("current_session_email") || "chinedu@example.com",
+    currentSupervisorId: localStorage.getItem("current_session_supervisor_id") || "IS_01",
     isLoggedIn: localStorage.getItem("current_session_role") ? true : false,
     isServerOnline: false,
     // Simulated Location: default to At Office coordinates
@@ -227,35 +230,7 @@ const HOME_COORDINATES = {
 // --- AUTHENTICATION & REGISTRATION LOGIC ---
 
 function populateLoginOptions() {
-    const loginUserSelect = document.getElementById("loginUser");
-    if (!loginUserSelect) return;
-    
-    loginUserSelect.innerHTML = "";
-    const db = getDB();
-    
-    // Add Dynamic Students
-    db.students.forEach(s => {
-        const opt = document.createElement("option");
-        opt.value = `student:${s.matric}`;
-        opt.textContent = `Intern: ${s.name} (${s.matric})`;
-        loginUserSelect.appendChild(opt);
-    });
-    
-    // Add Supervisors
-    const optInd = document.createElement("option");
-    optInd.value = "industry_supervisor:IS_01";
-    optInd.textContent = "Industry Supervisor (Engr. Sarah Jenkins)";
-    loginUserSelect.appendChild(optInd);
-    
-    const optSch = document.createElement("option");
-    optSch.value = "school_supervisor:SS_01";
-    optSch.textContent = "School Supervisor (Dr. Festus Alao)";
-    loginUserSelect.appendChild(optSch);
-    
-    const optCoord = document.createElement("option");
-    optCoord.value = "coordinator:CO_01";
-    optCoord.textContent = "IT Coordinator (Prof. Ebuka Obi)";
-    loginUserSelect.appendChild(optCoord);
+    // Dropdown is no longer used, replaced by email/password inputs.
 }
 
 function switchAuthTab(tab) {
@@ -281,23 +256,73 @@ function handleLoginRoleChange() {
     // Optional dynamic action on dropdown change
 }
 
-function handleLoginSubmit(event) {
+async function handleLoginSubmit(event) {
     event.preventDefault();
-    const val = document.getElementById("loginUser").value;
-    const [role, matricOrId] = val.split(":");
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value.trim();
     
-    state.activeRole = role;
-    state.isLoggedIn = true;
-    
-    localStorage.setItem("current_session_role", role);
-    
-    if (role === 'student') {
-        state.currentMatric = matricOrId;
-        state.selectedStudentMatric = matricOrId;
-        localStorage.setItem("current_session_matric", matricOrId);
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            alert(data.error || "Login failed. Please check your credentials.");
+            return;
+        }
+        
+        state.activeRole = data.role;
+        state.isLoggedIn = true;
+        state.currentUserName = data.name;
+        state.currentUserEmail = data.email;
+        
+        localStorage.setItem("current_session_role", data.role);
+        localStorage.setItem("current_session_name", data.name);
+        localStorage.setItem("current_session_email", data.email);
+        
+        if (data.role === 'student') {
+            state.currentMatric = data.matric;
+            state.selectedStudentMatric = data.matric;
+            localStorage.setItem("current_session_matric", data.matric);
+        } else {
+            state.currentSupervisorId = data.id;
+            localStorage.setItem("current_session_supervisor_id", data.id);
+        }
+        
+        renderAuthOrShell();
+        
+    } catch (err) {
+        console.error("Login connection error:", err.message);
+        alert("Connection failed. Attempting offline simulated login...");
+        if (email === 's.jenkins@techcorp.com') {
+            state.activeRole = 'industry_supervisor';
+            state.isLoggedIn = true;
+            state.currentUserName = "Engr. Sarah Jenkins";
+            state.currentUserEmail = "s.jenkins@techcorp.com";
+            state.selectedStudentMatric = "UI/2022/CS/101";
+            localStorage.setItem("current_session_role", 'industry_supervisor');
+            localStorage.setItem("current_session_name", "Engr. Sarah Jenkins");
+            localStorage.setItem("current_session_email", "s.jenkins@techcorp.com");
+            localStorage.setItem("current_session_matric", "UI/2022/CS/101");
+            renderAuthOrShell();
+        } else if (email === 'student@siwes.com') {
+            state.activeRole = 'student';
+            state.isLoggedIn = true;
+            state.currentUserName = "Chinedu Azubuike";
+            state.currentUserEmail = "student@siwes.com";
+            state.currentMatric = "UI/2022/CS/101";
+            localStorage.setItem("current_session_role", 'student');
+            localStorage.setItem("current_session_name", "Chinedu Azubuike");
+            localStorage.setItem("current_session_email", "student@siwes.com");
+            localStorage.setItem("current_session_matric", "UI/2022/CS/101");
+            renderAuthOrShell();
+        } else {
+            alert("Offline demo mode only available for s.jenkins@techcorp.com or student@siwes.com with password123.");
+        }
     }
-    
-    renderAuthOrShell();
 }
 
 function fetchOfficeCoordinates() {
@@ -324,6 +349,8 @@ async function handleRegistrationSubmit(event) {
     const name = document.getElementById("regName").value.trim();
     const dept = document.getElementById("regDept").value.trim();
     const level = document.getElementById("regLevel").value;
+    const email = document.getElementById("regEmail").value.trim();
+    const password = document.getElementById("regPassword").value.trim();
     const company = document.getElementById("regCompany").value.trim();
     const officeAddress = document.getElementById("regAddress").value.trim();
     const officeLat = parseFloat(document.getElementById("regLat").value);
@@ -351,6 +378,8 @@ async function handleRegistrationSubmit(event) {
         geofenceRadius: 200,
         industrySupervisor,
         schoolSupervisor,
+        email,
+        password,
         academicGrade: null,
         academicFeedback: "",
         evaluationGrade: null,
@@ -368,10 +397,14 @@ async function handleRegistrationSubmit(event) {
     state.activeRole = "student";
     state.currentMatric = matric;
     state.selectedStudentMatric = matric;
+    state.currentUserName = name;
+    state.currentUserEmail = email;
     state.isLoggedIn = true;
     
     localStorage.setItem("current_session_role", "student");
     localStorage.setItem("current_session_matric", matric);
+    localStorage.setItem("current_session_name", name);
+    localStorage.setItem("current_session_email", email);
     
     // Reset form
     document.getElementById("regMatric").value = "";
@@ -559,11 +592,26 @@ function setupDemoPanel() {
 function changeRole(role) {
     state.activeRole = role;
     
-    // Set default tab for the role
-    if (role === "student") state.activeTab = "overview";
-    else if (role === "industry_supervisor") state.activeTab = "overview";
-    else if (role === "school_supervisor") state.activeTab = "students";
-    else if (role === "coordinator") state.activeTab = "dashboard";
+    // For demo panel switches, mock coordinates & session parameters so views load cleanly
+    if (role === "student") {
+        state.activeTab = "overview";
+        state.currentUserName = "Chinedu Azubuike";
+        state.currentUserEmail = "student@siwes.com";
+        state.currentMatric = "UI/2022/CS/101";
+    } else if (role === "industry_supervisor") {
+        state.activeTab = "overview";
+        state.currentUserName = "Engr. Sarah Jenkins";
+        state.currentUserEmail = "s.jenkins@techcorp.com";
+        state.selectedStudentMatric = "UI/2022/CS/101";
+    } else if (role === "school_supervisor") {
+        state.activeTab = "students";
+        state.currentUserName = "Dr. Festus Alao";
+        state.currentUserEmail = "f.alao@university.edu.ng";
+    } else if (role === "coordinator") {
+        state.activeTab = "dashboard";
+        state.currentUserName = "Prof. Ebuka Obi";
+        state.currentUserEmail = "coordinator@university.edu.ng";
+    }
     
     // Update User Profile Details UI in Sidebar
     updateSidebarProfile();
@@ -583,20 +631,17 @@ function updateSidebarProfile() {
     const nameEl = document.getElementById("sidebarUserName");
     const roleEl = document.getElementById("sidebarUserRole");
     
-    const db = getDB();
-    
     if (state.activeRole === "student") {
-        const student = db.students.find(s => s.matric === state.currentMatric);
-        nameEl.textContent = student.name;
-        roleEl.textContent = `${student.level} CS Intern`;
+        nameEl.textContent = state.currentUserName || "Student Intern";
+        roleEl.textContent = "CS Intern";
     } else if (state.activeRole === "industry_supervisor") {
-        nameEl.textContent = db.supervisors[0].name;
+        nameEl.textContent = state.currentUserName || "Industry Supervisor";
         roleEl.textContent = "Industry Supervisor";
     } else if (state.activeRole === "school_supervisor") {
-        nameEl.textContent = db.schoolSupervisors[0].name;
+        nameEl.textContent = state.currentUserName || "School Supervisor";
         roleEl.textContent = "School Supervisor";
     } else if (state.activeRole === "coordinator") {
-        nameEl.textContent = "Prof. Ebuka Obi";
+        nameEl.textContent = state.currentUserName || "Prof. Ebuka Obi";
         roleEl.textContent = "IT Coordinator";
     }
 }
@@ -1175,10 +1220,69 @@ function renderStudentProfile() {
 // --- INDUSTRY SUPERVISOR VIEWS RENDERING ---
 // ==========================================
 
+function populateSupervisorStudentSelector() {
+    const selectEl = document.getElementById("ind_student_selector");
+    if (!selectEl) return;
+    
+    const db = getDB();
+    const myStudents = db.students.filter(s => s.industrySupervisor === state.currentUserName);
+    
+    const currentValues = Array.from(selectEl.options).map(o => o.value);
+    const newValues = myStudents.map(s => s.matric);
+    const isSame = currentValues.length === newValues.length && currentValues.every((v, i) => v === newValues[i]);
+    
+    if (!isSame) {
+        selectEl.innerHTML = "";
+        if (myStudents.length === 0) {
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.textContent = "No assigned interns";
+            selectEl.appendChild(opt);
+        } else {
+            myStudents.forEach(s => {
+                const opt = document.createElement("option");
+                opt.value = s.matric;
+                opt.textContent = `${s.name} (${s.matric})`;
+                selectEl.appendChild(opt);
+            });
+        }
+    }
+    
+    if (myStudents.length > 0) {
+        if (!state.selectedStudentMatric || !myStudents.some(s => s.matric === state.selectedStudentMatric)) {
+            state.selectedStudentMatric = myStudents[0].matric;
+            localStorage.setItem("current_session_matric", myStudents[0].matric);
+        }
+        selectEl.value = state.selectedStudentMatric;
+    } else {
+        state.selectedStudentMatric = "";
+    }
+}
+
+function handleSupervisorStudentChange(matric) {
+    if (!matric) return;
+    state.selectedStudentMatric = matric;
+    localStorage.setItem("current_session_matric", matric);
+    renderIndustryOverview();
+}
+
 function renderIndustryOverview() {
     const db = getDB();
+    populateSupervisorStudentSelector();
+    
     const matric = state.selectedStudentMatric;
     const s = db.students.find(student => student.matric === matric);
+    
+    if (!s) {
+        document.getElementById("ind_student_name").textContent = "No Intern Selected";
+        document.getElementById("ind_student_matric").textContent = "--";
+        document.getElementById("ind_logs_verified").textContent = "0/0";
+        document.getElementById("ind_geofence_flags").textContent = "0";
+        document.getElementById("ind_eval_rating_fill").style.width = `0%`;
+        document.getElementById("ind_eval_rating_label").textContent = "Not Evaluated";
+        return;
+    }
+    
     const logs = db.logbook.filter(l => l.matric === matric);
     const att = db.attendance.filter(a => a.matric === matric);
     
