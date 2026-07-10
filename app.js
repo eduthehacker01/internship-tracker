@@ -737,7 +737,12 @@ function renderCurrentTab() {
     // Hide all panels
     document.querySelectorAll(".view-section").forEach(s => s.classList.remove("active"));
     
-    const panelId = `${state.activeRole}_${state.activeTab}_view`;
+    // Map role names to match index.html section IDs
+    let rolePrefix = state.activeRole;
+    if (rolePrefix === "industry_supervisor") rolePrefix = "industry";
+    if (rolePrefix === "school_supervisor") rolePrefix = "school";
+    
+    const panelId = `${rolePrefix}_${state.activeTab}_view`;
     const targetPanel = document.getElementById(panelId);
     
     if (targetPanel) {
