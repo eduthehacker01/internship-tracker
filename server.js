@@ -34,7 +34,19 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+function shouldSendRealEmail(email) {
+    if (!email) return false;
+    const lower = email.toLowerCase().trim();
+    const demoDomains = ['@techcorp.com', '@university.edu.ng', '@siwes.com', '@example.com'];
+    return !demoDomains.some(domain => lower.endsWith(domain));
+}
+
 function sendEmail(to, subject, html) {
+    if (!shouldSendRealEmail(to)) {
+        console.log(`[SIMULATED EMAIL] To: ${to} | Subject: ${subject} (Skipped SMTP send to prevent Gmail inbox bounces)`);
+        return Promise.resolve({ message: "Simulated email processed successfully" });
+    }
+    
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to,
