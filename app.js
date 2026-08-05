@@ -434,11 +434,13 @@ function handleLogout() {
 async function renderAuthOrShell() {
     const authScreen = document.getElementById("authScreen");
     const appShell = document.getElementById("appShell");
+    const landingPage = document.getElementById("landingPage");
     
     if (state.isLoggedIn) {
         // Sync latest database records from Supabase server
         await syncFromBackend();
         
+        if (landingPage) landingPage.style.display = "none";
         authScreen.style.display = "none";
         appShell.style.display = "flex";
         
@@ -450,7 +452,8 @@ async function renderAuthOrShell() {
         
         changeRole(state.activeRole);
     } else {
-        authScreen.style.display = "flex";
+        if (landingPage) landingPage.style.display = "flex";
+        authScreen.style.display = "none";
         appShell.style.display = "none";
         
         populateLoginOptions();
@@ -2259,4 +2262,19 @@ async function markAllNotificationsRead() {
     } catch (e) {
         console.error("Failed to mark notifications read on server:", e.message);
     }
+}
+
+// --- MODAL CONTROLS ---
+
+function openAuthModal(mode) {
+    const authScreen = document.getElementById("authScreen");
+    if (!authScreen) return;
+    authScreen.style.display = "flex";
+    switchAuthTab(mode);
+}
+
+function closeAuthModal() {
+    const authScreen = document.getElementById("authScreen");
+    if (!authScreen) return;
+    authScreen.style.display = "none";
 }
