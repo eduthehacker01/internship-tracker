@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOUAU SIWES — Department Admin Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase JS v2, Chart.js & jsPDF via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="config.js"></script>
+    <style>
+        /* Clean Top Navigation Tabs for the 4 Separate Sections */
+        .admin-nav-tabs {
+            display: flex;
+            gap: 0.65rem;
+            background: var(--bg-card);
+            padding: 0.55rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.65rem;
+            flex-wrap: wrap;
+        }
+        .admin-nav-tab {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.82rem 1.1rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text-secondary);
+            font-weight: 700;
+            font-size: 0.86rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-family: inherit;
+        }
+        .admin-nav-tab:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #FFFFFF;
+        }
+        .admin-nav-tab.active {
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+            color: #FFFFFF;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.35);
+            border-color: rgba(56, 189, 248, 0.35);
+        }
+        .admin-section-panel {
+            display: none;
+        }
+        .admin-section-panel.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- TOP UNIVERSITY BAR WITH LIVE NOTIFICATION BELL -->
+    <header class="mouau-topbar">
+        <div class="mouau-brand">
+            <div class="mouau-crest">MOUAU</div>
+            <div class="mouau-title-group">
+                <h1>Department Admin Portal — Computer Science SIWES</h1>
+                <p>MICHAEL OKPARA UNIVERSITY OF AGRICULTURE, UMUDIKE</p>
+            </div>
+        </div>
+        <nav class="topbar-nav">
+            <!-- LIVE NOTIFICATION BELL (target_role: 'admin') -->
+            <button type="button" class="notif-bell-btn" onclick="openAdminNotifModal()">
+                <span>🔔 Notifications</span>
+                <span class="notif-count-pill" id="adminUnreadBadge">0</span>
+            </button>
+            <button type="button" class="btn btn-outline-light btn-sm" onclick="refreshAdminData()">
+                🔄 Refresh Data
+            </button>
+            <a href="index.html" class="btn btn-outline-light btn-sm">Student Portal</a>
+            <button type="button" class="btn btn-danger btn-sm" onclick="logoutAdmin()">Sign Out</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- ================================================================== -->
+        <!-- TOP NAVIGATION TABS FOR THE 4 SEPARATE SECTIONS                    -->
+        <!-- ================================================================== -->
+        <div class="admin-nav-tabs">
+            <button type="button" class="admin-nav-tab active" id="tabBtnSection1" onclick="switchAdminSection(1)">
+                <span>📊 1. Overview &amp; Analytics</span>
+            </button>
+            <button type="button" class="admin-nav-tab" id="tabBtnSection2" onclick="switchAdminSection(2)">
+                <span>🎓 2. Intern Registration Table</span>
+            </button>
+            <button type="button" class="admin-nav-tab" id="tabBtnSection3" onclick="switchAdminSection(3)">
+                <span>📸 3. Attendance &amp; Live Selfies</span>
+            </button>
+            <button type="button" class="admin-nav-tab" id="tabBtnSection4" onclick="switchAdminSection(4)">
+                <span>📝 4. Daily Logbook &amp; Weekly Reports</span>
+            </button>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- SECTION 1: OVERVIEW & ANALYTICS                                    -->
+        <!-- ================================================================== -->
+        <section class="admin-section-panel active" id="adminSection1">
+            <!-- Top Summary Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Total Registered Interns</span>
+                    <div class="stat-value" id="statTotalInterns">0</div>
+                    <div class="stat-sub">Enrolled MOUAU Computer Science Students</div>
+                </div>
+                <div class="stat-card gold">
+                    <span class="stat-label">Active Companies</span>
+                    <div class="stat-value" id="statActiveCompanies">0</div>
+                    <div class="stat-sub">100m GPS-Locked Placement Centers</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Average Attendance %</span>
+                    <div class="stat-value" id="statAvgAttendance">0%</div>
+                    <div class="stat-sub">On-Time Punctuality Rate (&le; 08:30 AM)</div>
+                </div>
+                <div class="stat-card danger">
+                    <span class="stat-label">Geofence Alert Flags</span>
+                    <div class="stat-value" id="statGeofenceFlags">0</div>
+                    <div class="stat-sub">Late / Unread Registration Alerts</div>
+                </div>
+            </div>
+
+            <!-- Export Action Bar & Live Registration Alerts Preview -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">🔔 Live Registration &amp; Activity Alerts (`target_role: 'admin'`)</h2>
+                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:2px;">
+                            Unread alerts appear whenever a new student registers or clocks in. Export official department reports anytime.
+                        </p>
+                    </div>
+                    <div style="display:flex; gap:0.65rem; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="exportMasterCsv()">
+                            📥 Export CSV Master Sheet
+                        </button>
+                        <button type="button" class="btn btn-gold btn-sm" onclick="exportExecutivePdf()">
+                            📄 Download PDF Executive Report
+                        </button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="markAllAdminNotifsRead()">
+                            ✓ Mark Alerts Read
+                        </button>
+                    </div>
+                </div>
+                <div id="inlineAdminNotifList" style="display:flex; flex-direction:column; gap:0.6rem; max-height: 210px; overflow-y:auto;"></div>
+            </div>
+
+            <!-- Chart.js Visual Graphs -->
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.5rem;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">⏰ Attendance Punctuality (On-Time vs. Late)</h3>
+                    </div>
+                    <div style="position:relative; height:260px; width:100%;">
+                        <canvas id="chartPunctuality"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">📋 Logbook Submission Status (Verified vs. Pending)</h3>
+                    </div>
+                    <div style="position:relative; height:260px; width:100%;">
+                        <canvas id="chartLogbookStatus"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================================================== -->
+        <!-- SECTION 2: INTERN REGISTRATION TABLE                               -->
+        <!-- ================================================================== -->
+        <section class="admin-section-panel" id="adminSection2">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">🎓 Section 2: Intern Registration Table</h2>
+                        <p style="font-size:0.82rem; color:var(--text-secondary); margin-top:2px;">
+                            Complete directory of all registered SIWES interns, their locked on-site office GPS coordinates, and their industry supervisors.
+                        </p>
+                    </div>
+                    <span class="badge badge-success" id="regTableCountBadge">0 Registered Interns</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="mouau-table">
+                        <thead>
+                            <tr>
+                                <th>Full Name</th>
+                                <th>Matric Number</th>
+                                <th>Department</th>
+                                <th>Level</th>
+                                <th>IT Company Name</th>
+                                <th>Office Street Address</th>
+                                <th>Locked Office GPS Coordinates</th>
+                                <th>Industry Supervisor Name</th>
+                                <th>Industry Supervisor Phone</th>
+                            </tr>
+                        </thead>
+                        <tbody id="internRegistrationTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================================================== -->
+        <!-- SECTION 3: ATTENDANCE & LIVE SELFIE RECORDS                        -->
+        <!-- ================================================================== -->
+        <section class="admin-section-panel" id="adminSection3">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">📸 Section 3: Attendance &amp; Live Selfie Records</h2>
+                        <p style="font-size:0.82rem; color:var(--text-secondary); margin-top:2px;">
+                            Daily 100-meter GPS clock-in and clock-out records with Haversine distance verification and clickable live front-camera selfies.
+                        </p>
+                    </div>
+                    <span class="badge badge-warning" id="attTableCountBadge">0 Attendance Records</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="mouau-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Student Name &amp; Matric Number</th>
+                                <th>Clock-In Time</th>
+                                <th>Punctuality Badge</th>
+                                <th>GPS Distance (Within 100m)</th>
+                                <th>Clock-Out Time</th>
+                                <th>Live Clock-In Selfie</th>
+                                <th>Live Clock-Out Selfie</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceSelfieTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================================================== -->
+        <!-- SECTION 4: DAILY LOGBOOK & WEEKLY REPORTS FEED                     -->
+        <!-- ================================================================== -->
+        <section class="admin-section-panel" id="adminSection4">
+            <!-- TABLE A: DAILY LOGBOOK FEED -->
+            <div class="card" style="margin-bottom: 1.75rem;">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">📝 Table A — Daily Logbook Feed</h2>
+                        <p style="font-size:0.82rem; color:var(--text-secondary); margin-top:2px;">
+                            All daily technical logbook submissions across registered interns. Click <strong>"Mark as Verified"</strong> to verify an entry.
+                        </p>
+                    </div>
+                    <span class="badge badge-success" id="dailyLogCountBadge">0 Daily Logs</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="mouau-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Student Name &amp; Matric Number</th>
+                                <th>Work Description</th>
+                                <th>Tools Used</th>
+                                <th>Hours Worked</th>
+                                <th>Status</th>
+                                <th>Admin Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dailyLogbookFeedBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TABLE B: WEEKLY PROGRESS REPORTS FEED -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">📅 Table B — Weekly Progress Reports Feed</h2>
+                        <p style="font-size:0.82rem; color:var(--text-secondary); margin-top:2px;">
+                            Weekly summary reports (Weeks 1–24) submitted by interns during their industrial training.
+                        </p>
+                    </div>
+                    <span class="badge badge-warning" id="weeklyReportCountBadge">0 Weekly Reports</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="mouau-table">
+                        <thead>
+                            <tr>
+                                <th>Week Number</th>
+                                <th>Student Name &amp; Matric Number</th>
+                                <th>Weekly Progress Summary</th>
+                                <th>Submission Status</th>
+                                <th>Admin Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weeklyReportsFeedBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ====================================================================== -->
+    <!-- MODAL 1: LIVE SELFIE FULL-SIZE VIEWER MODAL                            -->
+    <!-- ====================================================================== -->
+    <div class="modal-backdrop" id="selfieViewerModal">
+        <div class="modal-card" style="max-width: 520px; text-align:center;">
+            <div class="card-header">
+                <h3 class="card-title" id="selfieModalTitle">Live Attendance Selfie Verification</h3>
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeSelfieModal()">&times; Close</button>
+            </div>
+            <img id="selfieModalImage" src="" alt="Live Selfie" style="width:100%; max-height:420px; object-fit:contain; border-radius:12px; border:2px solid var(--accent-cyan); background:#000;">
+            <p id="selfieModalCaption" style="font-size:0.83rem; color:var(--text-secondary); margin-top:0.85rem;"></p>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- MODAL 2: ADMIN NOTIFICATION BELL MODAL                                 -->
+    <!-- ====================================================================== -->
+    <div class="modal-backdrop" id="adminNotifModal">
+        <div class="modal-card" style="max-width: 620px;">
+            <div class="card-header">
+                <h3 class="card-title">🔔 Admin Notification Center (`target_role: 'admin'`)</h3>
+                <div style="display:flex; gap:0.5rem;">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="markAllAdminNotifsRead()">Mark All Read</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="closeAdminNotifModal()">&times; Close</button>
+                </div>
+            </div>
+            <div id="modalAdminNotifList" style="display:flex; flex-direction:column; gap:0.65rem;"></div>
+        </div>
+    </div>
+
+    <script>
+        let chartPunctualityInstance = null;
+        let chartLogbookInstance = null;
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            await refreshAdminData();
+        });
+
+        function switchAdminSection(sectionNum) {
+            for (let i = 1; i <= 4; i++) {
+                const btn = document.getElementById(`tabBtnSection${i}`);
+                const panel = document.getElementById(`adminSection${i}`);
+                if (i === sectionNum) {
+                    btn.classList.add("active");
+                    panel.classList.add("active");
+                } else {
+                    btn.classList.remove("active");
+                    panel.classList.remove("active");
+                }
+            }
+            if (sectionNum === 1) {
+                const store = getLocalStore();
+                renderAdminCharts(store.attendance || [], store.daily_logs || []);
+            }
+        }
+
+        async function refreshAdminData() {
+            await syncAllTablesFromSupabase();
+            renderAllAdminSections();
+        }
+
+        function findStudentName(matricNumber, studentsList) {
+            const st = studentsList.find(s => s.matric_number.toUpperCase() === (matricNumber || "").toUpperCase());
+            return st ? `${st.first_name} ${st.last_name}` : matricNumber;
+        }
+
+        function renderAllAdminSections() {
+            const store = getLocalStore();
+            const students = store.students || [];
+            const attendance = store.attendance || [];
+            const dailyLogs = store.daily_logs || [];
+            const weeklyReports = store.weekly_reports || [];
+            const notifications = (store.notifications || []).filter(n => n.target_role === "admin" || n.target_role === "hod");
+            const unreadNotifs = notifications.filter(n => !n.is_read);
+
+            // =================================================================
+            // SECTION 1: OVERVIEW & ANALYTICS
+            // =================================================================
+            document.getElementById("statTotalInterns").textContent = students.length;
+            const uniqueCompanies = new Set(students.map(s => (s.company_name || "").trim().toLowerCase())).size;
+            document.getElementById("statActiveCompanies").textContent = uniqueCompanies;
+
+            const onTimeCount = attendance.filter(a => a.clock_in_status === "On-Time").length;
+            const avgAtt = attendance.length > 0 ? Math.round((onTimeCount / attendance.length) * 100) : 100;
+            document.getElementById("statAvgAttendance").textContent = `${avgAtt}%`;
+
+            const geofenceViolations = attendance.filter(a => Number(a.clock_in_distance || 0) > 100).length;
+            document.getElementById("statGeofenceFlags").textContent = geofenceViolations + unreadNotifs.length;
+            document.getElementById("adminUnreadBadge").textContent = unreadNotifs.length;
+
+            renderAdminNotifications(notifications);
+            renderAdminCharts(attendance, dailyLogs);
+
+            // =================================================================
+            // SECTION 2: INTERN REGISTRATION TABLE
+            // =================================================================
+            document.getElementById("regTableCountBadge").textContent = `${students.length} Registered Interns`;
+            const regBody = document.getElementById("internRegistrationTableBody");
+            regBody.innerHTML = "";
+
+            if (students.length === 0) {
+                regBody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:2rem; color:var(--text-muted);">No interns registered yet.</td></tr>`;
+            } else {
+                students.forEach(s => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong style="color:#FFFFFF;">${s.first_name} ${s.last_name}</strong></td>
+                        <td><span class="badge badge-success" style="font-family:monospace;">${s.matric_number}</span></td>
+                        <td>${s.department || "Computer Science"}</td>
+                        <td>${s.level || "300 Level"}</td>
+                        <td><strong>${s.company_name}</strong></td>
+                        <td>${s.office_address}</td>
+                        <td>
+                            <span style="font-family:monospace; color:var(--accent-cyan); font-weight:700;">
+                                ${Number(s.office_lat).toFixed(6)}, ${Number(s.office_lon).toFixed(6)}
+                            </span>
+                        </td>
+                        <td>${s.industry_supervisor_name}</td>
+                        <td>${s.industry_supervisor_phone}</td>
+                    `;
+                    regBody.appendChild(tr);
+                });
+            }
+
+            // =================================================================
+            // SECTION 3: ATTENDANCE & LIVE SELFIE RECORDS
+            // =================================================================
+            document.getElementById("attTableCountBadge").textContent = `${attendance.length} Attendance Records`;
+            const attBody = document.getElementById("attendanceSelfieTableBody");
+            attBody.innerHTML = "";
+
+            if (attendance.length === 0) {
+                attBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">No attendance records submitted yet.</td></tr>`;
+            } else {
+                attendance.forEach(a => {
+                    const fullName = findStudentName(a.matric_number, students);
+                    const pBadge = a.clock_in_status === "On-Time" ? "badge-success" : "badge-warning";
+                    const distVal = a.clock_in_distance != null ? `${Number(a.clock_in_distance).toFixed(1)}m` : "--";
+
+                    const inSelfieBtn = a.clock_in_selfie_url
+                        ? `<div style="display:flex; align-items:center; gap:0.5rem;">
+                               <img src="${a.clock_in_selfie_url}" class="selfie-thumb" onclick="viewSelfieModal('${a.clock_in_selfie_url}', 'Clock-In Selfie — ${fullName} (${a.matric_number})', 'Date: ${a.attendance_date} | Time: ${a.clock_in_time} | GPS Distance: ${distVal}')">
+                               <button type="button" class="btn btn-outline btn-sm" onclick="viewSelfieModal('${a.clock_in_selfie_url}', 'Clock-In Selfie — ${fullName} (${a.matric_number})', 'Date: ${a.attendance_date} | Time: ${a.clock_in_time} | GPS Distance: ${distVal}')">View Selfie</button>
+                           </div>`
+                        : `<span style="color:var(--text-muted);">No Selfie</span>`;
+
+                    const outSelfieBtn = a.clock_out_selfie_url
+                        ? `<div style="display:flex; align-items:center; gap:0.5rem;">
+                               <img src="${a.clock_out_selfie_url}" class="selfie-thumb" onclick="viewSelfieModal('${a.clock_out_selfie_url}', 'Clock-Out Selfie — ${fullName} (${a.matric_number})', 'Date: ${a.attendance_date} | Time: ${a.clock_out_time}')">
+                               <button type="button" class="btn btn-outline btn-sm" onclick="viewSelfieModal('${a.clock_out_selfie_url}', 'Clock-Out Selfie — ${fullName} (${a.matric_number})', 'Date: ${a.attendance_date} | Time: ${a.clock_out_time}')">View Selfie</button>
+                           </div>`
+                        : `<span style="color:var(--text-muted);">--</span>`;
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>${a.attendance_date}</strong></td>
+                        <td>
+                            <strong style="color:#FFFFFF;">${fullName}</strong>
+                            <div style="font-size:0.75rem; font-family:monospace; color:var(--accent-cyan);">${a.matric_number}</div>
+                        </td>
+                        <td>${a.clock_in_time || "--"}</td>
+                        <td><span class="badge ${pBadge}">${a.clock_in_status || "--"}</span></td>
+                        <td><span class="badge badge-success">${distVal} (Within 100m)</span></td>
+                        <td>${a.clock_out_time || "--"}</td>
+                        <td>${inSelfieBtn}</td>
+                        <td>${outSelfieBtn}</td>
+                    `;
+                    attBody.appendChild(tr);
+                });
+            }
+
+            // =================================================================
+            // SECTION 4: DAILY LOGBOOK & WEEKLY REPORTS FEED
+            // =================================================================
+            // Table A: Daily Logbook Feed
+            document.getElementById("dailyLogCountBadge").textContent = `${dailyLogs.length} Daily Logs`;
+            const logBody = document.getElementById("dailyLogbookFeedBody");
+            logBody.innerHTML = "";
+
+            if (dailyLogs.length === 0) {
+                logBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No daily logbook entries submitted yet.</td></tr>`;
+            } else {
+                dailyLogs.forEach(l => {
+                    const fullName = findStudentName(l.matric_number, students);
+                    const isVerified = l.status === "Verified" || l.status === "Approved";
+                    const stBadge = isVerified ? "badge-success" : "badge-warning";
+                    const displayStatus = isVerified ? "Verified" : "Pending";
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>${l.log_date}</strong></td>
+                        <td>
+                            <strong style="color:#FFFFFF;">${fullName}</strong>
+                            <div style="font-size:0.75rem; font-family:monospace; color:var(--accent-cyan);">${l.matric_number}</div>
+                        </td>
+                        <td style="max-width:340px;">${l.work_description}</td>
+                        <td><span style="color:var(--accent-cyan); font-weight:600;">${l.tools_used}</span></td>
+                        <td>${l.hours_worked} hrs</td>
+                        <td><span class="badge ${stBadge}">${displayStatus}</span></td>
+                        <td>
+                            ${isVerified
+                                ? `<span style="font-size:0.78rem; color:#34D399; font-weight:700;">✓ Verified</span>`
+                                : `<button type="button" class="btn btn-primary btn-sm" onclick="markDailyLogVerified('${l.matric_number}', '${l.log_date}')">✓ Mark as Verified</button>`
+                            }
+                        </td>
+                    `;
+                    logBody.appendChild(tr);
+                });
+            }
+
+            // Table B: Weekly Progress Reports Feed
+            document.getElementById("weeklyReportCountBadge").textContent = `${weeklyReports.length} Weekly Reports`;
+            const weekBody = document.getElementById("weeklyReportsFeedBody");
+            weekBody.innerHTML = "";
+
+            if (weeklyReports.length === 0) {
+                weekBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:2rem; color:var(--text-muted);">No weekly progress reports submitted yet.</td></tr>`;
+            } else {
+                weeklyReports.forEach(w => {
+                    const fullName = findStudentName(w.matric_number, students);
+                    const isVerified = w.status === "Verified" || w.status === "Approved";
+                    const stBadge = isVerified ? "badge-success" : "badge-warning";
+                    const displayStatus = isVerified ? "Verified" : (w.status || "Submitted");
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>Week ${w.week_number}</strong></td>
+                        <td>
+                            <strong style="color:#FFFFFF;">${fullName}</strong>
+                            <div style="font-size:0.75rem; font-family:monospace; color:var(--accent-cyan);">${w.matric_number}</div>
+                        </td>
+                        <td style="max-width:440px;">${w.summary}</td>
+                        <td><span class="badge ${stBadge}">${displayStatus}</span></td>
+                        <td>
+                            ${isVerified
+                                ? `<span style="font-size:0.78rem; color:#34D399; font-weight:700;">✓ Verified</span>`
+                                : `<button type="button" class="btn btn-primary btn-sm" onclick="markWeeklyReportVerified('${w.matric_number}', ${w.week_number})">✓ Mark as Verified</button>`
+                            }
+                        </td>
+                    `;
+                    weekBody.appendChild(tr);
+                });
+            }
+        }
+
+        function renderAdminNotifications(notifications) {
+            const inlineList = document.getElementById("inlineAdminNotifList");
+            const modalList = document.getElementById("modalAdminNotifList");
+            inlineList.innerHTML = "";
+            modalList.innerHTML = "";
+
+            if (notifications.length === 0) {
+                const empty = `<div style="padding:1rem; text-align:center; color:var(--text-muted);">No notifications yet.</div>`;
+                inlineList.innerHTML = empty;
+                modalList.innerHTML = empty;
+                return;
+            }
+
+            notifications.forEach(n => {
+                const html = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:0.75rem 1rem; border-radius:10px; background:${n.is_read ? 'rgba(255,255,255,0.03)' : 'rgba(37, 99, 235, 0.15)'}; border:1px solid ${n.is_read ? 'rgba(255,255,255,0.08)' : 'rgba(56, 189, 248, 0.35)'};">
+                        <div>
+                            <span class="badge ${n.is_read ? 'badge-success' : 'badge-warning'}" style="margin-right:8px;">
+                                ${n.is_read ? 'Read' : 'New Registration Alert'}
+                            </span>
+                            <span style="font-size:0.86rem; color:#F8FAFC; font-weight:${n.is_read ? '500' : '700'};">${n.message}</span>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="switchAdminSection(2); closeAdminNotifModal();">View Interns</button>
+                    </div>
+                `;
+                inlineList.insertAdjacentHTML("beforeend", html);
+                modalList.insertAdjacentHTML("beforeend", html);
+            });
+        }
+
+        async function markAllAdminNotifsRead() {
+            const store = getLocalStore();
+            store.notifications.forEach(n => {
+                if (n.target_role === "admin" || n.target_role === "hod") n.is_read = true;
+            });
+            saveLocalStore(store);
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient.from("notifications").update({ is_read: true }).in("target_role", ["admin", "hod"]);
+                } catch (e) {
+                    console.warn("Supabase mark read note:", e.message);
+                }
+            }
+            renderAllAdminSections();
+        }
+
+        async function markDailyLogVerified(matricNumber, logDate) {
+            const store = getLocalStore();
+            const logItem = store.daily_logs.find(l => l.matric_number === matricNumber && l.log_date === logDate);
+            if (logItem) {
+                logItem.status = "Verified";
+                logItem.supervisor_feedback = "Verified by Department Admin";
+                saveLocalStore(store);
+            }
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from("daily_logs")
+                        .update({ status: "Verified", supervisor_feedback: "Verified by Department Admin" })
+                        .match({ matric_number: matricNumber, log_date: logDate });
+                } catch (e) {
+                    console.warn("Supabase verify log note:", e.message);
+                }
+            }
+            renderAllAdminSections();
+        }
+
+        async function markWeeklyReportVerified(matricNumber, weekNumber) {
+            const store = getLocalStore();
+            const wk = store.weekly_reports.find(w => w.matric_number === matricNumber && Number(w.week_number) === Number(weekNumber));
+            if (wk) {
+                wk.status = "Verified";
+                saveLocalStore(store);
+            }
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from("weekly_reports")
+                        .update({ status: "Verified" })
+                        .match({ matric_number: matricNumber, week_number: weekNumber });
+                } catch (e) {
+                    console.warn("Supabase verify weekly note:", e.message);
+                }
+            }
+            renderAllAdminSections();
+        }
+
+        function renderAdminCharts(attendance, dailyLogs) {
+            if (typeof Chart === "undefined") return;
+
+            const onTime = attendance.filter(a => a.clock_in_status === "On-Time").length;
+            const late = attendance.filter(a => a.clock_in_status === "Late").length;
+
+            const ctx1 = document.getElementById("chartPunctuality");
+            if (ctx1) {
+                if (chartPunctualityInstance) chartPunctualityInstance.destroy();
+                chartPunctualityInstance = new Chart(ctx1, {
+                    type: "doughnut",
+                    data: {
+                        labels: ["On-Time (<= 08:30 AM)", "Late (> 08:30 AM)"],
+                        datasets: [{
+                            data: [onTime, late],
+                            backgroundColor: ["#10B981", "#F59E0B"],
+                            borderColor: "#131D33",
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: "bottom", labels: { color: "#CBD5E1" } }
+                        }
+                    }
+                });
+            }
+
+            const verifiedLogs = dailyLogs.filter(l => l.status === "Verified" || l.status === "Approved").length;
+            const pendingLogs = dailyLogs.filter(l => l.status === "Pending").length;
+
+            const ctx2 = document.getElementById("chartLogbookStatus");
+            if (ctx2) {
+                if (chartLogbookInstance) chartLogbookInstance.destroy();
+                chartLogbookInstance = new Chart(ctx2, {
+                    type: "bar",
+                    data: {
+                        labels: ["Verified Logs", "Pending Logs"],
+                        datasets: [{
+                            label: "Daily Logbook Entries",
+                            data: [verifiedLogs, pendingLogs],
+                            backgroundColor: ["#2563EB", "#F59E0B"],
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, ticks: { stepSize: 1, color: "#CBD5E1" }, grid: { color: "rgba(255,255,255,0.06)" } },
+                            x: { ticks: { color: "#CBD5E1" }, grid: { display: false } }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            }
+        }
+
+        function viewSelfieModal(imgUrl, title, caption) {
+            document.getElementById("selfieModalImage").src = imgUrl;
+            document.getElementById("selfieModalTitle").textContent = title;
+            document.getElementById("selfieModalCaption").textContent = caption;
+            document.getElementById("selfieViewerModal").classList.add("show");
+        }
+
+        function closeSelfieModal() {
+            document.getElementById("selfieViewerModal").classList.remove("show");
+        }
+
+        function openAdminNotifModal() {
+            document.getElementById("adminNotifModal").classList.add("show");
+        }
+
+        function closeAdminNotifModal() {
+            document.getElementById("adminNotifModal").classList.remove("show");
+        }
+
+        // Export CSV Master Sheet
+        function exportMasterCsv() {
+            const store = getLocalStore();
+            let csv = "Full Name,Matric Number,Department,Level,Email,IT Company Name,Office Street Address,Office Latitude,Office Longitude,Industry Supervisor Name,Industry Supervisor Phone,Days Clocked In,Verified Daily Logs\n";
+
+            store.students.forEach(s => {
+                const attCount = store.attendance.filter(a => a.matric_number === s.matric_number).length;
+                const verLogs = store.daily_logs.filter(l => l.matric_number === s.matric_number && (l.status === "Verified" || l.status === "Approved")).length;
+                csv += `"${s.first_name} ${s.last_name}","${s.matric_number}","${s.department}","${s.level}","${s.email}","${s.company_name}","${s.office_address}",${s.office_lat},${s.office_lon},"${s.industry_supervisor_name}","${s.industry_supervisor_phone}",${attCount},${verLogs}\n`;
+            });
+
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `MOUAU_SIWES_Master_Sheet_${new Date().toISOString().split("T")[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // Download PDF Executive Report using jsPDF
+        function exportExecutivePdf() {
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                alert("jsPDF library is loading. Please try again.");
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF("p", "pt", "a4");
+            const store = getLocalStore();
+
+            doc.setFillColor(11, 18, 33);
+            doc.rect(0, 0, 595, 82, "F");
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.text("MICHAEL OKPARA UNIVERSITY OF AGRICULTURE, UMUDIKE", 40, 32);
+            doc.setFontSize(11);
+            doc.text("DEPARTMENT OF COMPUTER SCIENCE - SIWES EXECUTIVE REPORT", 40, 52);
+            doc.setFontSize(9);
+            doc.text(`Generated: ${new Date().toLocaleString()} | 100m GPS Geofence Audit`, 40, 68);
+
+            let y = 110;
+            doc.setTextColor(17, 24, 39);
+            doc.setFontSize(11);
+            doc.text(`Total Interns: ${store.students.length} | Attendance Sessions: ${store.attendance.length} | Daily Logs: ${store.daily_logs.length}`, 40, y);
+            y += 24;
+
+            store.students.forEach((s, idx) => {
+                if (y > 740) {
+                    doc.addPage();
+                    y = 50;
+                }
+                const attCount = store.attendance.filter(a => a.matric_number === s.matric_number).length;
+                const verLogs = store.daily_logs.filter(l => l.matric_number === s.matric_number && (l.status === "Verified" || l.status === "Approved")).length;
+                const totalLogs = store.daily_logs.filter(l => l.matric_number === s.matric_number).length;
+
+                doc.setDrawColor(37, 99, 235);
+                doc.setFillColor(245, 247, 250);
+                doc.rect(40, y, 515, 62, "FD");
+
+                doc.setFontSize(10.5);
+                doc.setTextColor(11, 18, 33);
+                doc.text(`${idx + 1}. ${s.first_name} ${s.last_name} (${s.matric_number}) - ${s.level}`, 50, y + 18);
+
+                doc.setFontSize(9);
+                doc.setTextColor(71, 85, 105);
+                doc.text(`Company: ${s.company_name} (${s.office_address}) | GPS: [${Number(s.office_lat).toFixed(4)}, ${Number(s.office_lon).toFixed(4)}]`, 50, y + 34);
+                doc.text(`Industry Supervisor: ${s.industry_supervisor_name} (${s.industry_supervisor_phone}) | Clock-Ins: ${attCount} | Verified Logs: ${verLogs}/${totalLogs}`, 50, y + 50);
+
+                y += 74;
+            });
+
+            doc.save(`MOUAU_SIWES_Executive_Report_${new Date().toISOString().split("T")[0]}.pdf`);
+        }
+
+        function logoutAdmin() {
+            localStorage.removeItem("mouau_admin_authenticated");
+            window.location.href = "admin-login.html";
+        }
+    </script>
+</body>
+</html>

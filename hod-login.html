@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOUAU SIWES — HOD Restricted Admin Login</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+</head>
+<body>
+    <!-- TOP UNIVERSITY BAR -->
+    <header class="mouau-topbar">
+        <div class="mouau-brand">
+            <div class="mouau-crest">MOUAU</div>
+            <div class="mouau-title-group">
+                <h1>Michael Okpara University of Agriculture, Umudike</h1>
+                <p>OFFICE OF THE HEAD OF DEPARTMENT (COMPUTER SCIENCE) &bull; RESTRICTED ACCESS</p>
+            </div>
+        </div>
+        <nav class="topbar-nav">
+            <a href="index.html" class="btn btn-outline-light btn-sm">&larr; Student Portal</a>
+            <a href="supervisor-dashboard.html" class="btn btn-outline-light btn-sm">Supervisor Portal</a>
+        </nav>
+    </header>
+
+    <main class="container" style="max-width: 520px; margin-top: 2.5rem;">
+        <section class="auth-box" style="border-top: 5px solid var(--accent-blue);">
+            <div style="text-align:center; margin-bottom: 1.5rem;">
+                <span class="badge badge-warning" style="margin-bottom:0.65rem;">🔒 Restricted Administrative Gateway</span>
+                <h2 style="font-size:1.45rem; color:#FFFFFF;">HOD SIWES Command Portal</h2>
+                <p style="font-size:0.83rem; color:var(--text-secondary); margin-top:4px;">
+                    Public registration is strictly disabled for the Head of Department. Sign in with pre-configured HOD credentials.
+                </p>
+            </div>
+
+            <div id="hodLoginAlert" style="display:none; padding:0.8rem 1rem; border-radius:8px; margin-bottom:1rem; font-size:0.84rem; font-weight:600;"></div>
+
+            <form onsubmit="handleHodLogin(event)">
+                <div class="form-group">
+                    <label class="form-label" for="hodEmailInput">HOD Official Email Address</label>
+                    <input type="email" id="hodEmailInput" class="form-control" placeholder="hod.cmp@mouau.edu.ng" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="hodPasswordInput">HOD Master Password</label>
+                    <input type="password" id="hodPasswordInput" class="form-control" placeholder="Enter HOD password" required>
+                </div>
+
+                <div style="background: rgba(37, 99, 235, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 0.85rem; margin-bottom: 1.25rem; font-size: 0.78rem;">
+                    <div style="font-weight:700; color:var(--accent-cyan); margin-bottom:4px;">Pre-Configured HOD Credentials:</div>
+                    <div>Email: <strong>hod.cmp@mouau.edu.ng</strong></div>
+                    <div>Password: <strong>MOUAU_HOD_2026</strong></div>
+                    <button type="button" class="btn btn-gold btn-sm" style="margin-top:0.5rem; width:100%;" onclick="fillHodCredentials()">
+                        One-Click Fill HOD Credentials
+                    </button>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg" style="width:100%;">
+                    Authenticate &amp; Open HOD Dashboard
+                </button>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        function fillHodCredentials() {
+            document.getElementById("hodEmailInput").value = MOUAU_CONFIG.HOD_CREDENTIALS.email;
+            document.getElementById("hodPasswordInput").value = MOUAU_CONFIG.HOD_CREDENTIALS.password;
+        }
+
+        function handleHodLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById("hodEmailInput").value.trim().toLowerCase();
+            const pass = document.getElementById("hodPasswordInput").value.trim();
+            const alertBox = document.getElementById("hodLoginAlert");
+
+            const cfg = MOUAU_CONFIG.HOD_CREDENTIALS;
+            const isValid =
+                (email === cfg.email.toLowerCase() && pass === cfg.password) ||
+                (email === cfg.altEmail.toLowerCase() && pass === cfg.altPassword) ||
+                (email === "hod.cmp@mouau.edu.ng" && pass === "password123");
+
+            if (!isValid) {
+                alertBox.style.display = "block";
+                alertBox.style.background = "#FEE2E2";
+                alertBox.style.color = "#B91C1C";
+                alertBox.textContent = "❌ Access Denied: Invalid HOD credentials. Public registration is disabled.";
+                return;
+            }
+
+            localStorage.setItem("mouau_hod_authenticated", "true");
+            alertBox.style.display = "block";
+            alertBox.style.background = "#DCFCE7";
+            alertBox.style.color = "#15803D";
+            alertBox.textContent = "✅ HOD Authenticated! Redirecting to HOD Command Portal...";
+
+            setTimeout(() => {
+                window.location.href = "hod-dashboard.html";
+            }, 500);
+        }
+    </script>
+</body>
+</html>

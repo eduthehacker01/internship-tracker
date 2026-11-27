@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOUAU SIWES — HOD Admin Command Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase JS v2, Chart.js & jsPDF via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="config.js"></script>
+</head>
+<body>
+    <!-- TOP UNIVERSITY BAR WITH LIVE NOTIFICATION BELL -->
+    <header class="mouau-topbar">
+        <div class="mouau-brand">
+            <div class="mouau-crest">MOUAU</div>
+            <div class="mouau-title-group">
+                <h1>HOD SIWES Admin Portal — Dept. of Computer Science</h1>
+                <p>MICHAEL OKPARA UNIVERSITY OF AGRICULTURE, UMUDIKE &bull; LIVE GEOFENCE &amp; SELFIE AUDIT</p>
+            </div>
+        </div>
+        <nav class="topbar-nav">
+            <!-- LIVE NOTIFICATION BELL -->
+            <button type="button" class="notif-bell-btn" onclick="openNotificationsModal()">
+                <span>🔔 HOD Alerts</span>
+                <span class="notif-count-pill" id="hodUnreadBadge">0</span>
+            </button>
+            <button type="button" class="btn btn-gold btn-sm" onclick="exportMasterCsv()">
+                📥 Export CSV Master Sheet
+            </button>
+            <button type="button" class="btn btn-gold btn-sm" onclick="exportExecutivePdf()">
+                📄 Export PDF Executive Report
+            </button>
+            <a href="supervisor-dashboard.html" class="btn btn-outline-light btn-sm">Supervisor Portal</a>
+            <a href="index.html" class="btn btn-outline-light btn-sm">Student Portal</a>
+            <button type="button" class="btn btn-danger btn-sm" onclick="logoutHod()">Logout HOD</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- 1. DEPARTMENT OVERVIEW STAT CARDS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Total Placed Students</span>
+                <div class="stat-value" id="hodStatTotalStudents">0</div>
+                <div class="stat-sub">MOUAU Computer Science Interns</div>
+            </div>
+            <div class="stat-card gold">
+                <span class="stat-label">Active IT Companies</span>
+                <div class="stat-value" id="hodStatActiveCompanies">0</div>
+                <div class="stat-sub">Verified 100m Geofenced Offices</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Average Attendance Punctuality</span>
+                <div class="stat-value" id="hodStatAvgAttendance">0%</div>
+                <div class="stat-sub">On-Time (&le; 08:30 AM) vs Late</div>
+            </div>
+            <div class="stat-card danger">
+                <span class="stat-label">Unread HOD Notifications</span>
+                <div class="stat-value" id="hodStatGeofenceAlerts">0</div>
+                <div class="stat-sub">Registrations, Late &amp; Log Alerts</div>
+            </div>
+        </div>
+
+        <!-- 2. LIVE IN-APP HOD NOTIFICATION INBOX BANNER -->
+        <section class="card" style="margin-bottom: 1.75rem; border-left: 6px solid var(--mouau-gold);">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">🔔 Live HOD Notification Feed (`target_role: 'hod'`)</h2>
+                    <p style="font-size:0.8rem; color:var(--text-secondary);">
+                        Every new student registration, live selfie clock-in, and logbook submission streams directly into this HOD Portal.
+                    </p>
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="refreshHodPortal()">🔄 Sync Live Data</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="markAllHodNotificationsRead()">✓ Mark All Read</button>
+                </div>
+            </div>
+            <div id="hodInlineNotifFeed" style="display:flex; flex-direction:column; gap:0.6rem; max-height: 220px; overflow-y:auto;"></div>
+        </section>
+
+        <!-- 3. CHART.JS ANALYTICS SECTION -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.5rem; margin-bottom: 1.75rem;">
+            <section class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📊 Attendance Punctuality Split (On-Time vs Late)</h3>
+                </div>
+                <div style="position:relative; height:240px; width:100%;">
+                    <canvas id="hodPunctualityChart"></canvas>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📈 Logbook Approval Progress per Student</h3>
+                </div>
+                <div style="position:relative; height:240px; width:100%;">
+                    <canvas id="hodLogbookProgressChart"></canvas>
+                </div>
+            </section>
+        </div>
+
+        <!-- 4. STUDENT & SUPERVISOR PAIRING TABLE -->
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">🎓 Registered SIWES Students &amp; Departmental Supervisor Pairing</h2>
+                    <p style="font-size:0.82rem; color:var(--text-secondary);">
+                        Assign Departmental (School) Supervisors to registered interns and click <strong>"Audit Selfies &amp; Logs"</strong> to inspect GPS distances, live selfie photos, and approve daily logbooks.
+                    </p>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="mouau-table">
+                    <thead>
+                        <tr>
+                            <th>Matric Number &amp; Name</th>
+                            <th>Level &amp; Email</th>
+                            <th>IT Company &amp; Office Address</th>
+                            <th>Locked Office GPS</th>
+                            <th>Industry Supervisor</th>
+                            <th>Assign Departmental Supervisor</th>
+                            <th>Attendance &amp; Selfie Audit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hodStudentsTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- ====================================================================== -->
+    <!-- MODAL 1: ATTENDANCE, GPS DISTANCE, LIVE SELFIE & LOGBOOK AUDIT MODAL   -->
+    <!-- ====================================================================== -->
+    <div class="modal-backdrop" id="selfieAuditModal">
+        <div class="modal-card" style="max-width: 960px;">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title" id="auditModalTitle">Intern Attendance, Live Selfie &amp; Logbook Audit</h3>
+                    <p style="font-size:0.8rem; color:var(--text-secondary);" id="auditModalSubtitle">--</p>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeAuditModal()">&times; Close Audit</button>
+            </div>
+
+            <!-- Section A: Clock-In/Out Timestamps, GPS Meter Distances & Live Selfies -->
+            <h4 style="font-size:0.95rem; color:var(--mouau-green-deep); margin-bottom:0.65rem;">
+                📸 1. Verified GPS Clock-In / Clock-Out Timestamps, Distances &amp; Live Selfie Snapshots
+            </h4>
+            <div class="table-responsive" style="margin-bottom: 1.5rem;">
+                <table class="mouau-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Clock-In Time</th>
+                            <th>GPS Distance</th>
+                            <th>Punctuality</th>
+                            <th>Clock-In Live Selfie</th>
+                            <th>Clock-Out Time</th>
+                            <th>Out Distance</th>
+                            <th>Clock-Out Live Selfie</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditAttendanceTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Section B: Daily Logbook Entries & Direct Approval Controls -->
+            <h4 style="font-size:0.95rem; color:var(--mouau-green-deep); margin-bottom:0.65rem;">
+                📝 2. Daily Logbook Submissions &amp; Approval / Feedback Controls
+            </h4>
+            <div class="table-responsive" style="margin-bottom: 1.5rem;">
+                <table class="mouau-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Work Description &amp; Tools</th>
+                            <th>Hours</th>
+                            <th>Status</th>
+                            <th>Supervisor / HOD Feedback &amp; Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditDailyLogsTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Section C: Weekly Progress Reports -->
+            <h4 style="font-size:0.95rem; color:var(--mouau-green-deep); margin-bottom:0.65rem;">
+                📅 3. Weekly Progress Reports (Weeks 1–24)
+            </h4>
+            <div class="table-responsive">
+                <table class="mouau-table">
+                    <thead>
+                        <tr>
+                            <th>Week</th>
+                            <th>Weekly Progress Summary</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditWeeklyTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- MODAL 2: NOTIFICATIONS MODAL                                           -->
+    <!-- ====================================================================== -->
+    <div class="modal-backdrop" id="hodNotifModal">
+        <div class="modal-card" style="max-width: 640px;">
+            <div class="card-header">
+                <h3 class="card-title">🔔 HOD Notification Center (`target_role: 'hod'`)</h3>
+                <div style="display:flex; gap:0.5rem;">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="markAllHodNotificationsRead()">Mark All Read</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="closeNotificationsModal()">&times; Close</button>
+                </div>
+            </div>
+            <div id="hodModalNotifList" style="display:flex; flex-direction:column; gap:0.65rem;"></div>
+        </div>
+    </div>
+
+    <script>
+        let punctualityChartObj = null;
+        let logbookChartObj = null;
+        let activeAuditMatric = null;
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            await refreshHodPortal();
+        });
+
+        async function refreshHodPortal() {
+            await syncAllTablesFromSupabase();
+            renderHodDashboard();
+        }
+
+        function renderHodDashboard() {
+            const store = getLocalStore();
+            const students = store.students || [];
+            const attendance = store.attendance || [];
+            const logs = store.daily_logs || [];
+            const hodNotifs = (store.notifications || []).filter(n => n.target_role === "hod");
+            const unreadNotifs = hodNotifs.filter(n => !n.is_read);
+
+            // 1. Stat Cards
+            document.getElementById("hodStatTotalStudents").textContent = students.length;
+            const uniqueCompanies = new Set(students.map(s => s.company_name.trim().toLowerCase())).size;
+            document.getElementById("hodStatActiveCompanies").textContent = uniqueCompanies;
+
+            const onTimeCount = attendance.filter(a => a.clock_in_status === "On-Time").length;
+            const avgPunctuality = attendance.length > 0 ? Math.round((onTimeCount / attendance.length) * 100) : 100;
+            document.getElementById("hodStatAvgAttendance").textContent = `${avgPunctuality}%`;
+
+            document.getElementById("hodStatGeofenceAlerts").textContent = unreadNotifs.length;
+            document.getElementById("hodUnreadBadge").textContent = unreadNotifs.length;
+
+            // 2. Render Inline & Modal Notifications
+            renderHodNotificationsList(hodNotifs);
+
+            // 3. Render Student & Supervisor Pairing Table
+            const tbody = document.getElementById("hodStudentsTableBody");
+            tbody.innerHTML = "";
+
+            if (students.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No students registered yet.</td></tr>`;
+            } else {
+                students.forEach(s => {
+                    const stAtt = attendance.filter(a => a.matric_number === s.matric_number);
+                    const stLogs = logs.filter(l => l.matric_number === s.matric_number);
+                    const pendingCount = stLogs.filter(l => l.status === "Pending").length;
+
+                    const supOptions = MOUAU_CONFIG.SCHOOL_SUPERVISORS_LIST.map(supName => {
+                        const selected = (s.school_supervisor_name || "Unassigned") === supName ? "selected" : "";
+                        return `<option value="${supName}" ${selected}>${supName}</option>`;
+                    }).join("");
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>
+                            <strong style="color:var(--mouau-green-deep);">${s.first_name} ${s.last_name}</strong>
+                            <div style="font-size:0.76rem; font-family:monospace; font-weight:700;">${s.matric_number}</div>
+                        </td>
+                        <td>
+                            <div>${s.level}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">${s.email}</div>
+                        </td>
+                        <td>
+                            <strong>${s.company_name}</strong>
+                            <div style="font-size:0.75rem; color:var(--text-secondary);">${s.office_address}</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-success" style="font-family:monospace;">
+                                ${Number(s.office_lat).toFixed(4)}, ${Number(s.office_lon).toFixed(4)} (${s.geofence_radius || 100}m)
+                            </span>
+                        </td>
+                        <td>
+                            <div><strong>${s.industry_supervisor_name}</strong></div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">${s.industry_supervisor_phone}</div>
+                        </td>
+                        <td>
+                            <div style="display:flex; gap:0.4rem; align-items:center;">
+                                <select class="form-control" style="padding:0.4rem 0.6rem; font-size:0.8rem;" onchange="assignSchoolSupervisor('${s.matric_number}', this.value)">
+                                    ${supOptions}
+                                </select>
+                            </div>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="openAuditModal('${s.matric_number}')">
+                                🔍 Audit Selfies &amp; Logs (${stAtt.length} Att / ${pendingCount} Pending)
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // 4. Render Chart.js Analytics
+            renderHodCharts(students, attendance, logs);
+        }
+
+        function renderHodNotificationsList(hodNotifs) {
+            const inlineFeed = document.getElementById("hodInlineNotifFeed");
+            const modalList = document.getElementById("hodModalNotifList");
+            inlineFeed.innerHTML = "";
+            modalList.innerHTML = "";
+
+            if (hodNotifs.length === 0) {
+                const emptyHtml = `<div style="padding:1rem; text-align:center; color:var(--text-muted);">No HOD notifications yet.</div>`;
+                inlineFeed.innerHTML = emptyHtml;
+                modalList.innerHTML = emptyHtml;
+                return;
+            }
+
+            hodNotifs.forEach(n => {
+                const cardHtml = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:0.75rem 1rem; border-radius:10px; background:${n.is_read ? 'rgba(255,255,255,0.03)' : 'rgba(37, 99, 235, 0.14)'}; border:1px solid ${n.is_read ? 'rgba(255,255,255,0.08)' : 'rgba(56, 189, 248, 0.35)'};">
+                        <div>
+                            <span class="badge ${n.is_read ? 'badge-success' : 'badge-warning'}" style="margin-right:6px;">
+                                ${n.is_read ? 'Read' : 'New Alert'}
+                            </span>
+                            <span style="font-size:0.85rem; color:#F8FAFC; font-weight:${n.is_read ? '500' : '700'};">${n.message}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-shrink:0;">
+                            ${n.matric_number ? `<button type="button" class="btn btn-outline btn-sm" onclick="openAuditModal('${n.matric_number}')">Audit Student</button>` : ''}
+                        </div>
+                    </div>
+                `;
+                inlineFeed.insertAdjacentHTML("beforeend", cardHtml);
+                modalList.insertAdjacentHTML("beforeend", cardHtml);
+            });
+        }
+
+        async function markAllHodNotificationsRead() {
+            const store = getLocalStore();
+            store.notifications.forEach(n => {
+                if (n.target_role === "hod") n.is_read = true;
+            });
+            saveLocalStore(store);
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from("notifications")
+                        .update({ is_read: true })
+                        .eq("target_role", "hod");
+                } catch (e) {
+                    console.warn("Supabase notifications update note:", e.message);
+                }
+            }
+            renderHodDashboard();
+        }
+
+        async function assignSchoolSupervisor(matricNumber, supervisorName) {
+            const store = getLocalStore();
+            const st = store.students.find(s => s.matric_number === matricNumber);
+            if (st) {
+                st.school_supervisor_name = supervisorName;
+                saveLocalStore(store);
+            }
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from("students")
+                        .update({ school_supervisor_name: supervisorName })
+                        .eq("matric_number", matricNumber);
+                } catch (e) {
+                    console.warn("Supabase supervisor pairing note:", e.message);
+                }
+            }
+            alert(`Assigned Departmental Supervisor "${supervisorName}" to ${matricNumber}.`);
+            renderHodDashboard();
+        }
+
+        function renderHodCharts(students, attendance, logs) {
+            if (typeof Chart === "undefined") return;
+
+            const onTime = attendance.filter(a => a.clock_in_status === "On-Time").length;
+            const late = attendance.filter(a => a.clock_in_status === "Late").length;
+
+            const ctx1 = document.getElementById("hodPunctualityChart");
+            if (ctx1) {
+                if (punctualityChartObj) punctualityChartObj.destroy();
+                punctualityChartObj = new Chart(ctx1, {
+                    type: "doughnut",
+                    data: {
+                        labels: ["On-Time (<= 08:30 AM)", "Late (> 08:30 AM)"],
+                        datasets: [{
+                            data: [onTime, late],
+                            backgroundColor: ["#1D9D21", "#F59E0B"],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: "bottom" } }
+                    }
+                });
+            }
+
+            const labels = students.map(s => `${s.first_name} (${s.matric_number.slice(-6)})`);
+            const approvedData = students.map(s => logs.filter(l => l.matric_number === s.matric_number && l.status === "Approved").length);
+            const pendingData = students.map(s => logs.filter(l => l.matric_number === s.matric_number && l.status === "Pending").length);
+
+            const ctx2 = document.getElementById("hodLogbookProgressChart");
+            if (ctx2) {
+                if (logbookChartObj) logbookChartObj.destroy();
+                logbookChartObj = new Chart(ctx2, {
+                    type: "bar",
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            { label: "Approved Daily Logs", data: approvedData, backgroundColor: "#1D9D21" },
+                            { label: "Pending Daily Logs", data: pendingData, backgroundColor: "#F59E0B" }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                        plugins: { legend: { position: "bottom" } }
+                    }
+                });
+            }
+        }
+
+        // Open Attendance & Live Selfie Audit Modal
+        function openAuditModal(matricNumber) {
+            activeAuditMatric = matricNumber;
+            const store = getLocalStore();
+            const student = store.students.find(s => s.matric_number === matricNumber);
+            if (!student) return;
+
+            document.getElementById("auditModalTitle").textContent = `Audit: ${student.first_name} ${student.last_name} (${student.matric_number})`;
+            document.getElementById("auditModalSubtitle").textContent = `Company: ${student.company_name} (${student.office_address}) • Locked Office GPS: [${Number(student.office_lat).toFixed(5)}, ${Number(student.office_lon).toFixed(5)}] • Industry Sup: ${student.industry_supervisor_name}`;
+
+            // 1. Attendance & Selfies
+            const stAtt = store.attendance.filter(a => a.matric_number === matricNumber);
+            const attBody = document.getElementById("auditAttendanceTableBody");
+            attBody.innerHTML = "";
+
+            if (stAtt.length === 0) {
+                attBody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No GPS/Selfie attendance records submitted by this student yet.</td></tr>`;
+            } else {
+                stAtt.forEach(a => {
+                    const pBadge = a.clock_in_status === "On-Time" ? "badge-success" : "badge-warning";
+                    const inSelfie = a.clock_in_selfie_url
+                        ? `<a href="${a.clock_in_selfie_url}" target="_blank"><img src="${a.clock_in_selfie_url}" class="selfie-thumb" title="Click to enlarge Clock-In Selfie"></a>`
+                        : "--";
+                    const outSelfie = a.clock_out_selfie_url
+                        ? `<a href="${a.clock_out_selfie_url}" target="_blank"><img src="${a.clock_out_selfie_url}" class="selfie-thumb" title="Click to enlarge Clock-Out Selfie"></a>`
+                        : "--";
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>${a.attendance_date}</strong></td>
+                        <td>${a.clock_in_time || "--"}</td>
+                        <td><span class="badge badge-success">${a.clock_in_distance != null ? a.clock_in_distance + "m" : "--"}</span></td>
+                        <td><span class="badge ${pBadge}">${a.clock_in_status || "--"}</span></td>
+                        <td>${inSelfie}</td>
+                        <td>${a.clock_out_time || "--"}</td>
+                        <td>${a.clock_out_distance != null ? `<span class="badge badge-success">${a.clock_out_distance}m</span>` : "--"}</td>
+                        <td>${outSelfie}</td>
+                    `;
+                    attBody.appendChild(tr);
+                });
+            }
+
+            // 2. Daily Logs & Approval Controls
+            const stLogs = store.daily_logs.filter(l => l.matric_number === matricNumber);
+            const logsBody = document.getElementById("auditDailyLogsTableBody");
+            logsBody.innerHTML = "";
+
+            if (stLogs.length === 0) {
+                logsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No daily logs submitted yet.</td></tr>`;
+            } else {
+                stLogs.forEach(l => {
+                    const stBadge = l.status === "Approved" ? "badge-success" : (l.status === "Rejected" ? "badge-danger" : "badge-warning");
+                    const fbInputId = `hod_fb_${l.id || l.log_date.replace(/[^a-zA-Z0-9]/g, "_")}`;
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>${l.log_date}</strong></td>
+                        <td>
+                            <div>${l.work_description}</div>
+                            <div style="font-size:0.75rem; color:var(--mouau-green-dark); margin-top:2px;"><strong>Tools:</strong> ${l.tools_used}</div>
+                        </td>
+                        <td>${l.hours_worked}h</td>
+                        <td><span class="badge ${stBadge}">${l.status}</span></td>
+                        <td>
+                            <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                                <input type="text" id="${fbInputId}" class="form-control" style="padding:0.35rem 0.6rem; font-size:0.78rem; min-width:150px; flex:1;" value="${l.supervisor_feedback || ""}" placeholder="Add remark...">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="updateDailyLogStatus('${matricNumber}', '${l.log_date}', 'Approved', '${fbInputId}')">Approve</button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="updateDailyLogStatus('${matricNumber}', '${l.log_date}', 'Rejected', '${fbInputId}')">Reject</button>
+                            </div>
+                        </td>
+                    `;
+                    logsBody.appendChild(tr);
+                });
+            }
+
+            // 3. Weekly Reports
+            const stWeeks = store.weekly_reports.filter(w => w.matric_number === matricNumber);
+            const weekBody = document.getElementById("auditWeeklyTableBody");
+            weekBody.innerHTML = "";
+
+            if (stWeeks.length === 0) {
+                weekBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No weekly reports submitted yet.</td></tr>`;
+            } else {
+                stWeeks.forEach(w => {
+                    const stBadge = w.status === "Approved" ? "badge-success" : "badge-warning";
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>Week ${w.week_number}</strong></td>
+                        <td>${w.summary}</td>
+                        <td><span class="badge ${stBadge}">${w.status}</span></td>
+                        <td>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="approveWeeklyReport('${matricNumber}', ${w.week_number})">Approve Week</button>
+                        </td>
+                    `;
+                    weekBody.appendChild(tr);
+                });
+            }
+
+            document.getElementById("selfieAuditModal").classList.add("show");
+        }
+
+        function closeAuditModal() {
+            document.getElementById("selfieAuditModal").classList.remove("show");
+        }
+
+        async function updateDailyLogStatus(matricNumber, logDate, newStatus, inputId) {
+            const feedback = document.getElementById(inputId) ? document.getElementById(inputId).value.trim() : "Reviewed by HOD";
+            const store = getLocalStore();
+            const logItem = store.daily_logs.find(l => l.matric_number === matricNumber && l.log_date === logDate);
+            if (logItem) {
+                logItem.status = newStatus;
+                logItem.supervisor_feedback = feedback || `${newStatus} by HOD`;
+                saveLocalStore(store);
+            }
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from("daily_logs")
+                        .update({ status: newStatus, supervisor_feedback: feedback || `${newStatus} by HOD` })
+                        .match({ matric_number: matricNumber, log_date: logDate });
+                } catch (e) {
+                    console.warn("Supabase daily log update note:", e.message);
+                }
+            }
+
+            openAuditModal(matricNumber);
+            renderHodDashboard();
+        }
+
+        async function approveWeeklyReport(matricNumber, weekNumber) {
+            const store = getLocalStore();
+            const wk = store.weekly_reports.find(w => w.matric_number === matricNumber && Number(w.week_number) === Number(weekNumber));
+            if (wk) {
+                wk.status = "Approved";
+                saveLocalStore(store);
+            }
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from("weekly_reports")
+                        .update({ status: "Approved" })
+                        .match({ matric_number: matricNumber, week_number: weekNumber });
+                } catch (e) {
+                    console.warn("Supabase weekly update note:", e.message);
+                }
+            }
+
+            openAuditModal(matricNumber);
+        }
+
+        function openNotificationsModal() {
+            document.getElementById("hodNotifModal").classList.add("show");
+        }
+
+        function closeNotificationsModal() {
+            document.getElementById("hodNotifModal").classList.remove("show");
+        }
+
+        // Export CSV Master Sheet
+        function exportMasterCsv() {
+            const store = getLocalStore();
+            let csv = "Matric Number,First Name,Last Name,Department,Level,Email,Company Name,Office Address,Office Lat,Office Lon,Industry Supervisor,Supervisor Phone,School Supervisor,Days Clocked In,Approved Daily Logs\n";
+
+            store.students.forEach(s => {
+                const attCount = store.attendance.filter(a => a.matric_number === s.matric_number).length;
+                const appLogs = store.daily_logs.filter(l => l.matric_number === s.matric_number && l.status === "Approved").length;
+                csv += `"${s.matric_number}","${s.first_name}","${s.last_name}","${s.department}","${s.level}","${s.email}","${s.company_name}","${s.office_address}",${s.office_lat},${s.office_lon},"${s.industry_supervisor_name}","${s.industry_supervisor_phone}","${s.school_supervisor_name || 'Unassigned'}",${attCount},${appLogs}\n`;
+            });
+
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `MOUAU_CSC_SIWES_Master_Sheet_${new Date().toISOString().split("T")[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // Export PDF Executive Report using jsPDF
+        function exportExecutivePdf() {
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                alert("jsPDF library is loading. Please try again in a moment.");
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF("p", "pt", "a4");
+            const store = getLocalStore();
+
+            // Header Banner
+            doc.setFillColor(11, 18, 33); // Deep Navy (#0B1221)
+            doc.rect(0, 0, 595, 82, "F");
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(15);
+            doc.text("MICHAEL OKPARA UNIVERSITY OF AGRICULTURE, UMUDIKE", 40, 32);
+            doc.setFontSize(11);
+            doc.text("DEPARTMENT OF COMPUTER SCIENCE - SIWES EXECUTIVE AUDIT REPORT", 40, 52);
+            doc.setFontSize(9);
+            doc.text(`Generated: ${new Date().toLocaleString()} | Geofence Radius: 100m`, 40, 68);
+
+            let y = 110;
+            doc.setTextColor(17, 24, 39);
+            doc.setFontSize(12);
+            doc.text(`Summary: ${store.students.length} Registered Students | ${store.attendance.length} Verified Clock-Ins | ${store.daily_logs.length} Daily Logs`, 40, y);
+            y += 25;
+
+            store.students.forEach((s, idx) => {
+                if (y > 740) {
+                    doc.addPage();
+                    y = 50;
+                }
+                const attCount = store.attendance.filter(a => a.matric_number === s.matric_number).length;
+                const appLogs = store.daily_logs.filter(l => l.matric_number === s.matric_number && l.status === "Approved").length;
+                const totalLogs = store.daily_logs.filter(l => l.matric_number === s.matric_number).length;
+
+                doc.setDrawColor(29, 157, 33);
+                doc.setFillColor(244, 247, 244);
+                doc.rect(40, y, 515, 64, "FD");
+
+                doc.setFontSize(11);
+                doc.setTextColor(11, 61, 13);
+                doc.text(`${idx + 1}. ${s.first_name} ${s.last_name} (${s.matric_number}) - ${s.level}`, 50, y + 18);
+
+                doc.setFontSize(9);
+                doc.setTextColor(55, 65, 81);
+                doc.text(`Company: ${s.company_name} (${s.office_address})`, 50, y + 34);
+                doc.text(`Industry Sup: ${s.industry_supervisor_name} | Dept Sup: ${s.school_supervisor_name || 'Unassigned'} | Attendance: ${attCount} days | Logs: ${appLogs}/${totalLogs} Approved`, 50, y + 50);
+
+                y += 76;
+            });
+
+            doc.save(`MOUAU_SIWES_Executive_Report_${new Date().toISOString().split("T")[0]}.pdf`);
+        }
+
+        function logoutHod() {
+            localStorage.removeItem("mouau_hod_authenticated");
+            window.location.href = "hod-login.html";
+        }
+    </script>
+</body>
+</html>

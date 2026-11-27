@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOUAU SIWES — Industry &amp; Departmental Supervisor Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+</head>
+<body>
+    <!-- TOP UNIVERSITY BAR -->
+    <header class="mouau-topbar">
+        <div class="mouau-brand">
+            <div class="mouau-crest">MOUAU</div>
+            <div class="mouau-title-group">
+                <h1>MOUAU SIWES Supervisor Verification Portal</h1>
+                <p>INDUSTRY &amp; DEPARTMENTAL SUPERVISORS &bull; LIVE SELFIE &amp; LOGBOOK APPROVAL</p>
+            </div>
+        </div>
+        <nav class="topbar-nav">
+            <a href="index.html" class="btn btn-outline-light btn-sm">Student Portal</a>
+            <a href="hod-login.html" class="btn btn-gold btn-sm">HOD Admin Portal</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- SUPERVISOR FILTER & ROLE BAR -->
+        <section class="card" style="margin-bottom: 1.5rem; border-left: 6px solid var(--mouau-green);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                <div>
+                    <h2 class="card-title">👔 Supervisor Inspection &amp; Digital Sign-Off Desk</h2>
+                    <p style="font-size:0.82rem; color:var(--text-secondary);">
+                        Select an intern below to verify their 100m GPS clock-in distances, inspect live front-camera selfies, and approve or comment on their Daily Logbooks and Weekly Progress Reports.
+                    </p>
+                </div>
+                <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                    <div>
+                        <label class="form-label" style="font-size:0.74rem; margin-bottom:2px;">Filter by Assigned Intern</label>
+                        <select id="supStudentSelect" class="form-control" style="min-width:270px;" onchange="renderSupervisorView()"></select>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" style="margin-top:18px;" onclick="reloadSupervisorData()">
+                        🔄 Refresh Data
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- SELECTED INTERN SUMMARY CARD -->
+        <div class="stats-grid" id="supInternSummaryGrid">
+            <div class="stat-card">
+                <span class="stat-label">Selected Intern</span>
+                <div class="stat-value" style="font-size:1.25rem;" id="supStatName">--</div>
+                <div class="stat-sub" id="supStatMatric">--</div>
+            </div>
+            <div class="stat-card gold">
+                <span class="stat-label">IT Company &amp; Locked GPS</span>
+                <div class="stat-value" style="font-size:1.15rem;" id="supStatCompany">--</div>
+                <div class="stat-sub" id="supStatGps">--</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Supervisors</span>
+                <div class="stat-value" style="font-size:1rem;" id="supStatIndSup">--</div>
+                <div class="stat-sub" id="supStatSchSup">--</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Pending Logbook Approvals</span>
+                <div class="stat-value" id="supStatPending">0</div>
+                <div class="stat-sub" id="supStatTotalAtt">0 Verified Attendance Days</div>
+            </div>
+        </div>
+
+        <!-- 1. LIVE SELFIE & 100M GPS ATTENDANCE AUDIT TABLE -->
+        <section class="card" style="margin-bottom: 1.75rem;">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">📸 1. Live Selfie &amp; 100m Haversine GPS Attendance Audit</h3>
+                    <p style="font-size:0.8rem; color:var(--text-secondary);">
+                        Verify that the intern clocked in physically at the company office before approving their daily work logs. Click any selfie thumbnail to inspect full-size.
+                    </p>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="mouau-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Clock-In Time</th>
+                            <th>GPS Distance</th>
+                            <th>Punctuality (08:30 AM)</th>
+                            <th>Clock-In Live Selfie</th>
+                            <th>Clock-Out Time</th>
+                            <th>Out Distance</th>
+                            <th>Clock-Out Live Selfie</th>
+                        </tr>
+                    </thead>
+                    <tbody id="supAttendanceBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 2. DAILY LOGBOOK APPROVAL & FEEDBACK TABLE -->
+        <section class="card" style="margin-bottom: 1.75rem;">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">📝 2. Daily Logbook Entries — Approve, Reject &amp; Leave Feedback</h3>
+                    <p style="font-size:0.8rem; color:var(--text-secondary);">
+                        Enter your supervisor comment and click <strong>Approve</strong> or <strong>Reject</strong>. The intern will see your feedback immediately in their Student Portal.
+                    </p>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="mouau-table">
+                    <thead>
+                        <tr>
+                            <th>Log Date</th>
+                            <th>Work Description &amp; Tools Used</th>
+                            <th>Hours</th>
+                            <th>Current Status</th>
+                            <th>Supervisor Feedback &amp; Digital Sign-Off</th>
+                        </tr>
+                    </thead>
+                    <tbody id="supDailyLogsBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 3. WEEKLY PROGRESS REPORTS REVIEW TABLE -->
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">📅 3. Weekly Progress Reports (Weeks 1–24)</h3>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="mouau-table">
+                    <thead>
+                        <tr>
+                            <th>Week Number</th>
+                            <th>Weekly Progress Summary</th>
+                            <th>Status</th>
+                            <th>Supervisor Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="supWeeklyBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            await reloadSupervisorData();
+        });
+
+        async function reloadSupervisorData() {
+            await syncAllTablesFromSupabase();
+            populateSupervisorDropdown();
+            renderSupervisorView();
+        }
+
+        function populateSupervisorDropdown() {
+            const store = getLocalStore();
+            const sel = document.getElementById("supStudentSelect");
+            const currentVal = sel.value;
+            sel.innerHTML = "";
+
+            store.students.forEach(s => {
+                const opt = document.createElement("option");
+                opt.value = s.matric_number;
+                opt.textContent = `${s.first_name} ${s.last_name} (${s.matric_number}) — ${s.company_name}`;
+                sel.appendChild(opt);
+            });
+
+            if (currentVal && store.students.some(s => s.matric_number === currentVal)) {
+                sel.value = currentVal;
+            }
+        }
+
+        function renderSupervisorView() {
+            const store = getLocalStore();
+            const matric = document.getElementById("supStudentSelect").value;
+            const student = store.students.find(s => s.matric_number === matric) || store.students[0];
+            if (!student) return;
+
+            const stAtt = store.attendance.filter(a => a.matric_number === student.matric_number);
+            const stLogs = store.daily_logs.filter(l => l.matric_number === student.matric_number);
+            const stWeeks = store.weekly_reports.filter(w => w.matric_number === student.matric_number);
+
+            // Populate Summary Cards
+            document.getElementById("supStatName").textContent = `${student.first_name} ${student.last_name}`;
+            document.getElementById("supStatMatric").textContent = `${student.matric_number} • ${student.level}`;
+            document.getElementById("supStatCompany").textContent = student.company_name;
+            document.getElementById("supStatGps").textContent = `${student.office_address} [${Number(student.office_lat).toFixed(4)}, ${Number(student.office_lon).toFixed(4)}]`;
+            document.getElementById("supStatIndSup").textContent = `Industry: ${student.industry_supervisor_name}`;
+            document.getElementById("supStatSchSup").textContent = `Dept: ${student.school_supervisor_name || "Unassigned"}`;
+            document.getElementById("supStatPending").textContent = `${stLogs.filter(l => l.status === "Pending").length} Pending`;
+            document.getElementById("supStatTotalAtt").textContent = `${stAtt.length} Verified GPS/Selfie Clock-Ins`;
+
+            // 1. Attendance & Selfies
+            const attBody = document.getElementById("supAttendanceBody");
+            attBody.innerHTML = "";
+            if (stAtt.length === 0) {
+                attBody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No attendance records found for this student.</td></tr>`;
+            } else {
+                stAtt.forEach(a => {
+                    const pBadge = a.clock_in_status === "On-Time" ? "badge-success" : "badge-warning";
+                    const inSelfie = a.clock_in_selfie_url
+                        ? `<a href="${a.clock_in_selfie_url}" target="_blank"><img src="${a.clock_in_selfie_url}" class="selfie-thumb"></a>`
+                        : "--";
+                    const outSelfie = a.clock_out_selfie_url
+                        ? `<a href="${a.clock_out_selfie_url}" target="_blank"><img src="${a.clock_out_selfie_url}" class="selfie-thumb"></a>`
+                        : "--";
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>${a.attendance_date}</strong></td>
+                        <td>${a.clock_in_time || "--"}</td>
+                        <td><span class="badge badge-success">${a.clock_in_distance != null ? a.clock_in_distance + "m" : "--"}</span></td>
+                        <td><span class="badge ${pBadge}">${a.clock_in_status || "--"}</span></td>
+                        <td>${inSelfie}</td>
+                        <td>${a.clock_out_time || "--"}</td>
+                        <td>${a.clock_out_distance != null ? `<span class="badge badge-success">${a.clock_out_distance}m</span>` : "--"}</td>
+                        <td>${outSelfie}</td>
+                    `;
+                    attBody.appendChild(tr);
+                });
+            }
+
+            // 2. Daily Logs
+            const logsBody = document.getElementById("supDailyLogsBody");
+            logsBody.innerHTML = "";
+            if (stLogs.length === 0) {
+                logsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No daily logs submitted yet.</td></tr>`;
+            } else {
+                stLogs.forEach(l => {
+                    const stBadge = l.status === "Approved" ? "badge-success" : (l.status === "Rejected" ? "badge-danger" : "badge-warning");
+                    const inputId = `sup_fb_${l.id || l.log_date.replace(/[^a-zA-Z0-9]/g, "_")}`;
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>${l.log_date}</strong></td>
+                        <td>
+                            <div>${l.work_description}</div>
+                            <div style="font-size:0.75rem; color:var(--mouau-green-dark); margin-top:3px;"><strong>Tools:</strong> ${l.tools_used}</div>
+                        </td>
+                        <td>${l.hours_worked}h</td>
+                        <td><span class="badge ${stBadge}">${l.status}</span></td>
+                        <td>
+                            <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                                <input type="text" id="${inputId}" class="form-control" style="padding:0.4rem 0.65rem; font-size:0.8rem; min-width:180px; flex:1;" value="${l.supervisor_feedback || ""}" placeholder="Write supervisor feedback...">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="supervisorSignOffLog('${student.matric_number}', '${l.log_date}', 'Approved', '${inputId}')">✓ Approve</button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="supervisorSignOffLog('${student.matric_number}', '${l.log_date}', 'Rejected', '${inputId}')">&times; Reject</button>
+                            </div>
+                        </td>
+                    `;
+                    logsBody.appendChild(tr);
+                });
+            }
+
+            // 3. Weekly Reports
+            const weekBody = document.getElementById("supWeeklyBody");
+            weekBody.innerHTML = "";
+            if (stWeeks.length === 0) {
+                weekBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No weekly reports submitted yet.</td></tr>`;
+            } else {
+                stWeeks.forEach(w => {
+                    const stBadge = w.status === "Approved" ? "badge-success" : "badge-warning";
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>Week ${w.week_number}</strong></td>
+                        <td>${w.summary}</td>
+                        <td><span class="badge ${stBadge}">${w.status}</span></td>
+                        <td>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="supervisorApproveWeekly('${student.matric_number}', ${w.week_number})">✓ Approve Week ${w.week_number}</button>
+                        </td>
+                    `;
+                    weekBody.appendChild(tr);
+                });
+            }
+        }
+
+        async function supervisorSignOffLog(matricNumber, logDate, newStatus, inputId) {
+            const feedback = document.getElementById(inputId) ? document.getElementById(inputId).value.trim() : "";
+            const finalFeedback = feedback || (newStatus === "Approved" ? "Verified and approved by Supervisor." : "Changes requested by Supervisor.");
+
+            const store = getLocalStore();
+            const logItem = store.daily_logs.find(l => l.matric_number === matricNumber && l.log_date === logDate);
+            if (logItem) {
+                logItem.status = newStatus;
+                logItem.supervisor_feedback = finalFeedback;
+                saveLocalStore(store);
+            }
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from("daily_logs")
+                        .update({ status: newStatus, supervisor_feedback: finalFeedback })
+                        .match({ matric_number: matricNumber, log_date: logDate });
+                } catch (e) {
+                    console.warn("Supabase supervisor sign-off note:", e.message);
+                }
+            }
+
+            renderSupervisorView();
+            alert(`Log entry for ${logDate} marked as ${newStatus}!`);
+        }
+
+        async function supervisorApproveWeekly(matricNumber, weekNumber) {
+            const store = getLocalStore();
+            const wk = store.weekly_reports.find(w => w.matric_number === matricNumber && Number(w.week_number) === Number(weekNumber));
+            if (wk) {
+                wk.status = "Approved";
+                saveLocalStore(store);
+            }
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient
+                        .from("weekly_reports")
+                        .update({ status: "Approved" })
+                        .match({ matric_number: matricNumber, week_number: weekNumber });
+                } catch (e) {
+                    console.warn("Supabase weekly approve note:", e.message);
+                }
+            }
+
+            renderSupervisorView();
+            alert(`Week ${weekNumber} progress report approved!`);
+        }
+    </script>
+</body>
+</html>

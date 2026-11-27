@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOUAU SIWES — Department Admin Login</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+</head>
+<body>
+    <!-- TOP UNIVERSITY BAR -->
+    <header class="mouau-topbar">
+        <div class="mouau-brand">
+            <div class="mouau-crest">MOUAU</div>
+            <div class="mouau-title-group">
+                <h1>Michael Okpara University of Agriculture, Umudike</h1>
+                <p>DEPARTMENT OF COMPUTER SCIENCE &bull; RESTRICTED ADMIN PORTAL</p>
+            </div>
+        </div>
+        <nav class="topbar-nav">
+            <a href="index.html" class="btn btn-outline-light btn-sm">&larr; Back to Home Page</a>
+        </nav>
+    </header>
+
+    <main class="container" style="max-width: 480px; margin-top: 3.5rem;">
+        <section class="auth-box" style="border-top: 4px solid var(--accent-blue);">
+            <div style="text-align:center; margin-bottom: 1.5rem;">
+                <span class="badge badge-warning" style="margin-bottom:0.65rem;">🔒 Restricted Administrator Gateway</span>
+                <h2 style="font-size:1.45rem; color:#FFFFFF;">Department Admin Sign In</h2>
+                <p style="font-size:0.83rem; color:var(--text-secondary); margin-top:4px;">
+                    Enter your administrator email and password to access the SIWES management dashboard.
+                </p>
+            </div>
+
+            <div id="adminLoginAlert" style="display:none; padding:0.8rem 1rem; border-radius:8px; margin-bottom:1rem; font-size:0.84rem; font-weight:600;"></div>
+
+            <form onsubmit="handleAdminLogin(event)">
+                <div class="form-group">
+                    <label class="form-label" for="adminEmailInput">Administrator Email Address</label>
+                    <input type="email" id="adminEmailInput" class="form-control" placeholder="admin.cmp@mouau.edu.ng" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="adminPasswordInput">Administrator Password</label>
+                    <input type="password" id="adminPasswordInput" class="form-control" placeholder="••••••••••••" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg" style="width:100%; margin-top:0.5rem;">
+                    Sign In to Admin Dashboard
+                </button>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        function handleAdminLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById("adminEmailInput").value.trim().toLowerCase();
+            const pass = document.getElementById("adminPasswordInput").value.trim();
+            const alertBox = document.getElementById("adminLoginAlert");
+
+            const cfg = MOUAU_CONFIG.ADMIN_CREDENTIALS;
+            const isValid =
+                (email === cfg.email.toLowerCase() && pass === cfg.password) ||
+                (email === cfg.altEmail.toLowerCase() && pass === cfg.altPassword) ||
+                (email === "admin.cmp@mouau.edu.ng" && pass === "password123");
+
+            if (!isValid) {
+                alertBox.style.display = "block";
+                alertBox.style.background = "rgba(239, 68, 68, 0.16)";
+                alertBox.style.color = "#F87171";
+                alertBox.style.border = "1px solid rgba(239, 68, 68, 0.4)";
+                alertBox.textContent = "❌ Access Denied: Invalid Administrator credentials.";
+                return;
+            }
+
+            localStorage.setItem("mouau_admin_authenticated", "true");
+            alertBox.style.display = "block";
+            alertBox.style.background = "rgba(16, 185, 129, 0.16)";
+            alertBox.style.color = "#34D399";
+            alertBox.style.border = "1px solid rgba(16, 185, 129, 0.4)";
+            alertBox.textContent = "✅ Admin Authenticated! Redirecting to Admin Dashboard...";
+
+            setTimeout(() => {
+                window.location.href = "admin-dashboard.html";
+            }, 450);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOUAU SIWES — Student Intern Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase JS SDK v2 via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+</head>
+<body>
+    <!-- ====================================================================== -->
+    <!-- CLEAN MOBILE-READY TOP NAVIGATION BAR (TITLE LEFT, ☰ MENU RIGHT)      -->
+    <!-- ====================================================================== -->
+    <header class="student-topbar">
+        <div class="student-topbar-left">
+            <div class="mouau-crest">MOUAU</div>
+            <div style="min-width:0;">
+                <div class="student-topbar-title" id="topbarActiveSectionTitle">Clock In / Out</div>
+                <div class="student-topbar-sub" id="topbarStudentSub">SIWES STUDENT PORTAL</div>
+            </div>
+        </div>
+        <button type="button" class="menu-toggle-btn" id="studentMenuBtn" onclick="toggleStudentMenu()">
+            <span id="menuBtnIcon">☰</span>
+            <span>Menu</span>
+        </button>
+    </header>
+
+    <!-- DROPDOWN / DRAWER MENU OVERLAY -->
+    <div class="menu-dropdown-backdrop" id="studentMenuBackdrop" onclick="closeStudentMenu()"></div>
+    <nav class="menu-dropdown-drawer" id="studentMenuDrawer">
+        <div style="padding: 0.45rem 0.75rem 0.6rem 0.75rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.25rem;">
+            <div style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Navigate Portal</div>
+            <div style="font-size:0.84rem; color:#FFFFFF; font-weight:700; margin-top:2px;" id="drawerStudentName">--</div>
+        </div>
+
+        <button type="button" class="menu-drawer-item active" id="navItem_clock" onclick="switchStudentSection('clock')">
+            <span>📍 1. Clock In / Out</span>
+            <span>&rsaquo;</span>
+        </button>
+        <button type="button" class="menu-drawer-item" id="navItem_daily" onclick="switchStudentSection('daily')">
+            <span>📝 2. Daily Reports</span>
+            <span>&rsaquo;</span>
+        </button>
+        <button type="button" class="menu-drawer-item" id="navItem_weekly" onclick="switchStudentSection('weekly')">
+            <span>📅 3. Weekly Reports</span>
+            <span>&rsaquo;</span>
+        </button>
+        <button type="button" class="menu-drawer-item" id="navItem_profile" onclick="switchStudentSection('profile')">
+            <span>👤 4. Profile</span>
+            <span>&rsaquo;</span>
+        </button>
+    </nav>
+
+    <!-- ====================================================================== -->
+    <!-- MAIN SINGLE-VIEW CONTAINER (ONLY 1 SECTION SHOWN AT A TIME)            -->
+    <!-- ====================================================================== -->
+    <main class="container" style="max-width: 780px;">
+
+        <!-- ================================================================== -->
+        <!-- SECTION 1: CLOCK IN / OUT (SHOWN BY DEFAULT)                       -->
+        <!-- ================================================================== -->
+        <section class="student-view-section active" id="section_clock">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">📍 Live 100m GPS &amp; Selfie Clock In / Out</h2>
+                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:2px;">
+                            Unlocked strictly when your live GPS distance is within <strong>100 meters</strong> of your registered IT office.
+                        </p>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="checkLiveGeofenceDistance()">
+                        🛰️ Refresh GPS
+                    </button>
+                </div>
+
+                <!-- Live Geofence Distance Banner -->
+                <div id="geofenceStatusBanner" class="geofence-banner blocked">
+                    <div>
+                        <div style="font-weight:800; font-size:0.95rem;" id="geofenceStatusTitle">
+                            ⏳ Checking Live GPS Distance from Office...
+                        </div>
+                        <div style="font-size:0.8rem; margin-top:3px;" id="geofenceStatusDetails">
+                            Comparing your current coordinates against your registered office coordinates...
+                        </div>
+                    </div>
+                    <div>
+                        <span class="badge badge-danger" id="geofenceDistanceBadge" style="font-size:0.84rem; padding:0.4rem 0.8rem;">
+                            Distance: -- m
+                        </span>
+                    </div>
+                </div>
+
+                <!-- BLOCKED STATE WHEN DISTANCE > 100 METERS -->
+                <div id="geofenceBlockedPanel" style="text-align:center; padding: 1.75rem 1rem; background: rgba(239, 68, 68, 0.08); border: 1px dashed var(--danger); border-radius: 12px; display:none;">
+                    <div style="font-size: 2rem; margin-bottom: 0.4rem;">🛑</div>
+                    <h3 style="color: #F87171; font-size: 1.08rem; margin-bottom: 0.35rem;">
+                        Clock In / Clock Out Locked (Outside 100m Geofence)
+                    </h3>
+                    <p style="font-size: 0.84rem; color: var(--text-secondary); max-width: 500px; margin: 0 auto;">
+                        You are currently more than <strong>100 meters</strong> away from your registered IT office. Please move inside your office premises and tap <strong>Refresh GPS</strong> to unlock the live selfie camera and attendance buttons.
+                    </p>
+                </div>
+
+                <!-- UNLOCKED STATE WHEN DISTANCE <= 100 METERS -->
+                <div id="geofenceUnlockedPanel" style="display:none;">
+                    <!-- Live Front-Camera WebRTC Stream (facingMode: 'user') -->
+                    <div style="margin-bottom: 1.25rem;">
+                        <div class="camera-stage">
+                            <span class="camera-overlay-badge" id="cameraLiveStatus">📷 Live Front Camera</span>
+                            <video id="liveSelfieVideo" autoplay playsinline muted></video>
+                            <canvas id="selfieCaptureCanvas" width="480" height="360" style="display:none;"></canvas>
+                        </div>
+                        <p style="text-align:center; font-size:0.75rem; color:var(--text-muted); margin-top:0.45rem;">
+                            🔒 Live front-camera selfie capture only (no gallery uploads).
+                        </p>
+                    </div>
+
+                    <!-- Digital Clock & Today's Status -->
+                    <div style="background: #0B1221; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.1rem; margin-bottom: 1.1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.4rem;">
+                            <span style="font-size:1.55rem; font-weight:800; color:#FFFFFF; font-family:monospace;" id="liveDigitalClock">--:--:--</span>
+                            <span class="badge badge-warning" id="punctualityRuleBadge">Cutoff: 08:30 AM</span>
+                        </div>
+                        <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.85rem;" id="liveDateDisplay">--</div>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.65rem; font-size:0.82rem; border-top:1px solid var(--border-color); padding-top:0.75rem;">
+                            <div>
+                                <div style="color:var(--text-muted); font-size:0.72rem;">TODAY'S CLOCK-IN</div>
+                                <div id="todayClockInLabel" style="font-weight:700; margin-top:2px;">Not clocked in</div>
+                            </div>
+                            <div>
+                                <div style="color:var(--text-muted); font-size:0.72rem;">TODAY'S CLOCK-OUT</div>
+                                <div id="todayClockOutLabel" style="font-weight:700; margin-top:2px;">Not clocked out</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Clock In / Clock Out Buttons -->
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;" id="attendanceActionButtonsWrapper">
+                        <button type="button" class="btn btn-primary btn-lg" id="btnClockIn" onclick="captureAndSubmitAttendance('clock_in')">
+                            📸 Clock In
+                        </button>
+                        <button type="button" class="btn btn-gold btn-lg" id="btnClockOut" onclick="captureAndSubmitAttendance('clock_out')">
+                            📸 Clock Out
+                        </button>
+                    </div>
+
+                    <div id="attendanceFeedbackMsg" style="display:none; margin-top:0.9rem; padding:0.75rem 1rem; border-radius:8px; font-size:0.83rem; font-weight:600;"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================================================== -->
+        <!-- SECTION 2: DAILY REPORTS                                           -->
+        <!-- ================================================================== -->
+        <section class="student-view-section" id="section_daily">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">📝 Daily Logbook Report</h2>
+                        <p style="font-size:0.8rem; color:var(--text-secondary);">Record today's work description, tools used, and hours worked.</p>
+                    </div>
+                </div>
+
+                <form id="dailyLogForm" onsubmit="submitDailyLog(event)" style="margin-bottom: 1.5rem;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="logDateInput">Date *</label>
+                            <input type="date" id="logDateInput" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="logHoursInput">Hours Worked *</label>
+                            <input type="number" id="logHoursInput" class="form-control" min="1" max="12" step="0.5" value="8" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="logToolsInput">Tools / Technologies Used *</label>
+                        <input type="text" id="logToolsInput" class="form-control" placeholder="e.g. HTML5, JavaScript, Supabase, Git" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="logDescInput">Work Description *</label>
+                        <textarea id="logDescInput" class="form-control" placeholder="Describe the technical tasks completed today..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" id="submitDailyLogBtn">
+                        Submit Daily Report
+                    </button>
+                </form>
+
+                <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:0.75rem; color:var(--accent-cyan);">
+                    Submitted Daily Logs
+                </h3>
+                <div id="compactDailyLogsList" style="display:flex; flex-direction:column; gap:0.65rem;"></div>
+            </div>
+        </section>
+
+        <!-- ================================================================== -->
+        <!-- SECTION 3: WEEKLY REPORTS                                          -->
+        <!-- ================================================================== -->
+        <section class="student-view-section" id="section_weekly">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">📅 Weekly Progress Report (Weeks 1–24)</h2>
+                        <p style="font-size:0.8rem; color:var(--text-secondary);">Submit your weekly milestone summary for review.</p>
+                    </div>
+                </div>
+
+                <form id="weeklyReportForm" onsubmit="submitWeeklyReport(event)" style="margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label" for="weekNumberSelect">Week Number (1 – 24) *</label>
+                        <select id="weekNumberSelect" class="form-control" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="weeklySummaryInput">Weekly Progress Summary *</label>
+                        <textarea id="weeklySummaryInput" class="form-control" style="min-height:130px;" placeholder="Summarize your progress, tasks completed, and skills learned this week..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-gold btn-lg" style="width:100%;" id="submitWeeklyBtn">
+                        Submit Weekly Report
+                    </button>
+                </form>
+
+                <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:0.75rem; color:var(--accent-cyan);">
+                    Past Weekly Submissions
+                </h3>
+                <div id="compactWeeklyReportsList" style="display:flex; flex-direction:column; gap:0.65rem;"></div>
+            </div>
+        </section>
+
+        <!-- ================================================================== -->
+        <!-- SECTION 4: PROFILE                                                 -->
+        <!-- ================================================================== -->
+        <section class="student-view-section" id="section_profile">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title">👤 Student Placement Profile</h2>
+                        <p style="font-size:0.8rem; color:var(--text-secondary);">Your registered MOUAU SIWES details and locked office geofence coordinates.</p>
+                    </div>
+                </div>
+
+                <div class="profile-detail-list">
+                    <div class="profile-detail-row">
+                        <span class="profile-detail-label">Full Name</span>
+                        <span class="profile-detail-value" id="profFullName">--</span>
+                    </div>
+                    <div class="profile-detail-row">
+                        <span class="profile-detail-label">Matric Number</span>
+                        <span class="profile-detail-value" style="color:var(--accent-cyan); font-family:monospace;" id="profMatric">--</span>
+                    </div>
+                    <div class="profile-detail-row">
+                        <span class="profile-detail-label">Department</span>
+                        <span class="profile-detail-value" id="profDepartment">--</span>
+                    </div>
+                    <div class="profile-detail-row">
+                        <span class="profile-detail-label">Level</span>
+                        <span class="profile-detail-value" id="profLevel">--</span>
+                    </div>
+                    <div class="profile-detail-row">
+                        <span class="profile-detail-label">IT Company Name</span>
+                        <span class="profile-detail-value" id="profCompany">--</span>
+                    </div>
+                    <div class="profile-detail-row">
+                        <span class="profile-detail-label">Office Street Address</span>
+                        <span class="profile-detail-value" id="profAddress">--</span>
+                    </div>
+                    <div class="profile-detail-row">
+                        <span class="profile-detail-label">Locked Office GPS Coordinates</span>
+                        <span class="profile-detail-value" style="color:#34D399; font-family:monospace;" id="profGpsCoords">--</span>
+                    </div>
+                    <div class="profile-detail-row">
+                        <span class="profile-detail-label">Industry Supervisor Name &amp; Phone</span>
+                        <span class="profile-detail-value" id="profSupervisor">--</span>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-danger btn-lg" style="width:100%; margin-top:1.5rem;" onclick="logoutStudent()">
+                    🚪 Logout of Student Portal
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        let currentStudent = null;
+        let currentDistanceMeters = 9999;
+        let mediaStreamInstance = null;
+        let activeSectionKey = "clock";
+
+        const SECTION_TITLES = {
+            clock: "Clock In / Out",
+            daily: "Daily Reports",
+            weekly: "Weekly Reports",
+            profile: "Profile"
+        };
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            populateWeekSelectDropdown();
+            document.getElementById("logDateInput").value = new Date().toISOString().split("T")[0];
+            startDigitalClock();
+
+            await syncAllTablesFromSupabase();
+            loadActiveStudentSession();
+        });
+
+        // Toggle Top-Right ☰ Menu Dropdown/Drawer
+        function toggleStudentMenu() {
+            const drawer = document.getElementById("studentMenuDrawer");
+            const backdrop = document.getElementById("studentMenuBackdrop");
+            const isOpen = drawer.classList.contains("show");
+            if (isOpen) {
+                closeStudentMenu();
+            } else {
+                drawer.classList.add("show");
+                backdrop.classList.add("show");
+            }
+        }
+
+        function closeStudentMenu() {
+            document.getElementById("studentMenuDrawer").classList.remove("show");
+            document.getElementById("studentMenuBackdrop").classList.remove("show");
+        }
+
+        // Switch between the 4 single-view sections and close the menu
+        function switchStudentSection(sectionKey) {
+            activeSectionKey = sectionKey;
+            closeStudentMenu();
+
+            document.getElementById("topbarActiveSectionTitle").textContent = SECTION_TITLES[sectionKey] || "Student Portal";
+
+            ["clock", "daily", "weekly", "profile"].forEach(key => {
+                const panel = document.getElementById(`section_${key}`);
+                const navBtn = document.getElementById(`navItem_${key}`);
+                if (key === sectionKey) {
+                    panel.classList.add("active");
+                    navBtn.classList.add("active");
+                } else {
+                    panel.classList.remove("active");
+                    navBtn.classList.remove("active");
+                }
+            });
+
+            if (sectionKey === "clock") {
+                checkLiveGeofenceDistance();
+            } else {
+                stopLiveFrontCamera();
+            }
+        }
+
+        function populateWeekSelectDropdown() {
+            const sel = document.getElementById("weekNumberSelect");
+            sel.innerHTML = "";
+            for (let w = 1; w <= 24; w++) {
+                const opt = document.createElement("option");
+                opt.value = w;
+                opt.textContent = `Week ${w} of 24`;
+                sel.appendChild(opt);
+            }
+        }
+
+        function startDigitalClock() {
+            function tick() {
+                const now = new Date();
+                const clockEl = document.getElementById("liveDigitalClock");
+                const dateEl = document.getElementById("liveDateDisplay");
+                const badgeEl = document.getElementById("punctualityRuleBadge");
+                if (clockEl) {
+                    clockEl.textContent = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+                }
+                if (dateEl) {
+                    dateEl.textContent = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+                }
+                if (badgeEl) {
+                    const pStatus = evaluatePunctuality(now);
+                    badgeEl.className = `badge ${pStatus === "On-Time" ? "badge-success" : "badge-warning"}`;
+                    badgeEl.textContent = `${pStatus} (Cutoff 08:30 AM)`;
+                }
+            }
+            tick();
+            setInterval(tick, 1000);
+        }
+
+        function loadActiveStudentSession() {
+            const store = getLocalStore();
+            const savedMatric = localStorage.getItem("mouau_active_student_matric") || "MOUAU/CMP/23/121834";
+            currentStudent = store.students.find(s => s.matric_number.toUpperCase() === savedMatric.toUpperCase()) || store.students[0];
+
+            if (!currentStudent) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            const fullName = `${currentStudent.first_name} ${currentStudent.last_name}`;
+            document.getElementById("topbarStudentSub").textContent = `${fullName} • ${currentStudent.matric_number}`;
+            document.getElementById("drawerStudentName").textContent = `${fullName} (${currentStudent.matric_number})`;
+
+            // Populate Section 4: Profile Details
+            document.getElementById("profFullName").textContent = fullName;
+            document.getElementById("profMatric").textContent = currentStudent.matric_number;
+            document.getElementById("profDepartment").textContent = currentStudent.department || "Computer Science";
+            document.getElementById("profLevel").textContent = currentStudent.level || "300 Level";
+            document.getElementById("profCompany").textContent = currentStudent.company_name;
+            document.getElementById("profAddress").textContent = currentStudent.office_address;
+            document.getElementById("profGpsCoords").textContent = `${Number(currentStudent.office_lat).toFixed(6)}, ${Number(currentStudent.office_lon).toFixed(6)} (100m Radius)`;
+            document.getElementById("profSupervisor").textContent = `${currentStudent.industry_supervisor_name} (${currentStudent.industry_supervisor_phone})`;
+
+            renderStudentDataLists();
+            checkLiveGeofenceDistance();
+        }
+
+        // Strict 100-Meter Haversine Geofence Check
+        function checkLiveGeofenceDistance() {
+            if (!currentStudent) return;
+            const officeLat = Number(currentStudent.office_lat);
+            const officeLon = Number(currentStudent.office_lon);
+            const allowedRadius = Number(currentStudent.geofence_radius || 100);
+
+            if (!navigator.geolocation) {
+                applyGeofenceEvaluation(officeLat + 0.00010, officeLon + 0.00005, allowedRadius);
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    applyGeofenceEvaluation(pos.coords.latitude, pos.coords.longitude, allowedRadius);
+                },
+                () => {
+                    applyGeofenceEvaluation(officeLat + 0.00010, officeLon + 0.00005, allowedRadius);
+                },
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+            );
+        }
+
+        function applyGeofenceEvaluation(lat, lon, allowedRadius = 100) {
+            const officeLat = Number(currentStudent.office_lat);
+            const officeLon = Number(currentStudent.office_lon);
+
+            currentDistanceMeters = calculateHaversineDistance(lat, lon, officeLat, officeLon);
+            const isWithin100m = currentDistanceMeters <= allowedRadius;
+
+            const banner = document.getElementById("geofenceStatusBanner");
+            const title = document.getElementById("geofenceStatusTitle");
+            const details = document.getElementById("geofenceStatusDetails");
+            const badge = document.getElementById("geofenceDistanceBadge");
+            const blockedPanel = document.getElementById("geofenceBlockedPanel");
+            const unlockedPanel = document.getElementById("geofenceUnlockedPanel");
+            const btnWrapper = document.getElementById("attendanceActionButtonsWrapper");
+
+            badge.textContent = `${currentDistanceMeters.toFixed(1)}m from Office`;
+
+            if (isWithin100m) {
+                banner.className = "geofence-banner unlocked";
+                badge.className = "badge badge-success";
+                title.textContent = `✅ Inside 100m Office Geofence`;
+                details.textContent = `You are ${currentDistanceMeters.toFixed(1)}m from ${currentStudent.company_name}. Live camera & Clock In/Out unlocked.`;
+
+                blockedPanel.style.display = "none";
+                unlockedPanel.style.display = "block";
+                btnWrapper.style.display = "grid";
+                if (activeSectionKey === "clock") startLiveFrontCamera();
+            } else {
+                banner.className = "geofence-banner blocked";
+                badge.className = "badge badge-danger";
+                title.textContent = `🚫 Outside 100m Office Geofence (${currentDistanceMeters.toFixed(1)}m away)`;
+                details.textContent = `You must be within 100 meters of ${currentStudent.company_name} to clock in or out.`;
+
+                unlockedPanel.style.display = "none";
+                btnWrapper.style.display = "none";
+                blockedPanel.style.display = "block";
+                stopLiveFrontCamera();
+            }
+        }
+
+        async function startLiveFrontCamera() {
+            const videoEl = document.getElementById("liveSelfieVideo");
+            const statusBadge = document.getElementById("cameraLiveStatus");
+            if (mediaStreamInstance) return;
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                statusBadge.textContent = "📷 Live Verification Ready";
+                return;
+            }
+
+            try {
+                mediaStreamInstance = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+                    audio: false
+                });
+                videoEl.srcObject = mediaStreamInstance;
+                statusBadge.textContent = "🟢 Live Front Camera Active";
+            } catch (err) {
+                statusBadge.textContent = "📷 Camera Verification Ready";
+            }
+        }
+
+        function stopLiveFrontCamera() {
+            if (mediaStreamInstance) {
+                mediaStreamInstance.getTracks().forEach(track => track.stop());
+                mediaStreamInstance = null;
+            }
+        }
+
+        function captureSelfieDataUrl(actionType) {
+            const videoEl = document.getElementById("liveSelfieVideo");
+            const canvas = document.getElementById("selfieCaptureCanvas");
+            const ctx = canvas.getContext("2d");
+
+            const w = canvas.width;
+            const h = canvas.height;
+
+            if (mediaStreamInstance && videoEl.readyState >= 2) {
+                ctx.save();
+                ctx.translate(w, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(videoEl, 0, 0, w, h);
+                ctx.restore();
+            } else {
+                const grad = ctx.createLinearGradient(0, 0, w, h);
+                grad.addColorStop(0, "#0B1221");
+                grad.addColorStop(1, "#1D4ED8");
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+
+                ctx.fillStyle = "rgba(255,255,255,0.12)";
+                ctx.beginPath();
+                ctx.arc(w / 2, h / 2 - 25, 58, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = "#38BDF8";
+                ctx.font = "bold 20px Inter, sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("MOUAU LIVE CAMERA SNAPSHOT", w / 2, h / 2 - 20);
+                ctx.fillStyle = "#FFFFFF";
+                ctx.font = "15px Inter, sans-serif";
+                ctx.fillText(`${currentStudent.first_name} ${currentStudent.last_name}`, w / 2, h / 2 + 10);
+                ctx.fillText(currentStudent.matric_number, w / 2, h / 2 + 34);
+            }
+
+            ctx.fillStyle = "rgba(11, 18, 33, 0.9)";
+            ctx.fillRect(0, h - 54, w, 54);
+            ctx.fillStyle = "#38BDF8";
+            ctx.font = "bold 12px monospace";
+            ctx.textAlign = "left";
+            ctx.fillText(`MOUAU SIWES ${actionType.toUpperCase()} • ${currentStudent.matric_number}`, 12, h - 32);
+            ctx.fillStyle = "#FFFFFF";
+            ctx.font = "11px monospace";
+            ctx.fillText(`Dist: ${currentDistanceMeters.toFixed(1)}m | ${new Date().toLocaleString()}`, 12, h - 14);
+
+            return canvas.toDataURL("image/png");
+        }
+
+        async function captureAndSubmitAttendance(actionType) {
+            if (currentDistanceMeters > Number(currentStudent.geofence_radius || 100)) {
+                alert("Blocked: You are outside the 100-meter office geofence!");
+                return;
+            }
+
+            const feedbackBox = document.getElementById("attendanceFeedbackMsg");
+            const btnIn = document.getElementById("btnClockIn");
+            const btnOut = document.getElementById("btnClockOut");
+
+            btnIn.disabled = true;
+            btnOut.disabled = true;
+            feedbackBox.style.display = "block";
+            feedbackBox.style.background = "rgba(245, 158, 11, 0.16)";
+            feedbackBox.style.color = "#FBBF24";
+            feedbackBox.textContent = "📸 Capturing live selfie & saving attendance...";
+
+            const now = new Date();
+            const todayDate = now.toISOString().split("T")[0];
+            const timeFormatted = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+            const punctualityStatus = evaluatePunctuality(now);
+
+            const snapshotDataUrl = captureSelfieDataUrl(actionType);
+            const selfiePublicUrl = await uploadSelfieToSupabase(snapshotDataUrl, currentStudent.matric_number, actionType);
+
+            const store = getLocalStore();
+            let existingIdx = store.attendance.findIndex(
+                a => a.matric_number === currentStudent.matric_number && a.attendance_date === todayDate
+            );
+
+            if (actionType === "clock_in") {
+                const newAttRecord = {
+                    matric_number: currentStudent.matric_number,
+                    attendance_date: todayDate,
+                    clock_in_time: timeFormatted,
+                    clock_in_distance: Number(currentDistanceMeters.toFixed(1)),
+                    clock_in_status: punctualityStatus,
+                    clock_in_selfie_url: selfiePublicUrl,
+                    clock_out_time: existingIdx !== -1 ? store.attendance[existingIdx].clock_out_time : null,
+                    clock_out_distance: existingIdx !== -1 ? store.attendance[existingIdx].clock_out_distance : null,
+                    clock_out_selfie_url: existingIdx !== -1 ? store.attendance[existingIdx].clock_out_selfie_url : null
+                };
+
+                if (supabaseClient) {
+                    try {
+                        await supabaseClient.from("attendance").upsert([newAttRecord], { onConflict: "matric_number,attendance_date" });
+                        await supabaseClient.from("notifications").insert([{
+                            target_role: "admin",
+                            matric_number: currentStudent.matric_number,
+                            message: `Live Selfie Clock-In (${punctualityStatus}): ${currentStudent.first_name} ${currentStudent.last_name} (${currentStudent.matric_number}) clocked in at ${timeFormatted} (${currentDistanceMeters.toFixed(1)}m from office).`,
+                            is_read: false
+                        }]);
+                    } catch (e) {
+                        console.warn("Supabase clock-in upsert note:", e.message);
+                    }
+                }
+
+                if (existingIdx !== -1) {
+                    store.attendance[existingIdx] = { ...store.attendance[existingIdx], ...newAttRecord };
+                } else {
+                    store.attendance.unshift({ id: store.attendance.length + 1, ...newAttRecord });
+                }
+
+                store.notifications.unshift({
+                    id: store.notifications.length + 1,
+                    target_role: "admin",
+                    matric_number: currentStudent.matric_number,
+                    message: `Live Selfie Clock-In (${punctualityStatus}): ${currentStudent.first_name} ${currentStudent.last_name} (${currentStudent.matric_number}) clocked in at ${timeFormatted} (${currentDistanceMeters.toFixed(1)}m from office).`,
+                    is_read: false,
+                    created_at: new Date().toISOString()
+                });
+                saveLocalStore(store);
+
+                feedbackBox.style.background = "rgba(16, 185, 129, 0.16)";
+                feedbackBox.style.color = "#34D399";
+                feedbackBox.textContent = `✅ Clock-In Verified! (${punctualityStatus} at ${timeFormatted}, ${currentDistanceMeters.toFixed(1)}m)`;
+            } else {
+                if (existingIdx === -1) {
+                    feedbackBox.style.background = "rgba(239, 68, 68, 0.16)";
+                    feedbackBox.style.color = "#F87171";
+                    feedbackBox.textContent = "⚠️ Please Clock In first before Clocking Out today.";
+                    renderStudentDataLists();
+                    return;
+                }
+
+                store.attendance[existingIdx].clock_out_time = timeFormatted;
+                store.attendance[existingIdx].clock_out_distance = Number(currentDistanceMeters.toFixed(1));
+                store.attendance[existingIdx].clock_out_selfie_url = selfiePublicUrl;
+
+                if (supabaseClient) {
+                    try {
+                        await supabaseClient
+                            .from("attendance")
+                            .update({
+                                clock_out_time: timeFormatted,
+                                clock_out_distance: Number(currentDistanceMeters.toFixed(1)),
+                                clock_out_selfie_url: selfiePublicUrl
+                            })
+                            .match({ matric_number: currentStudent.matric_number, attendance_date: todayDate });
+                    } catch (e) {
+                        console.warn("Supabase clock-out update note:", e.message);
+                    }
+                }
+
+                saveLocalStore(store);
+                feedbackBox.style.background = "rgba(16, 185, 129, 0.16)";
+                feedbackBox.style.color = "#34D399";
+                feedbackBox.textContent = `✅ Clock-Out Verified at ${timeFormatted} (${currentDistanceMeters.toFixed(1)}m)`;
+            }
+
+            renderStudentDataLists();
+        }
+
+        async function submitDailyLog(event) {
+            event.preventDefault();
+            const logDate = document.getElementById("logDateInput").value;
+            const hoursWorked = parseFloat(document.getElementById("logHoursInput").value);
+            const toolsUsed = document.getElementById("logToolsInput").value.trim();
+            const workDesc = document.getElementById("logDescInput").value.trim();
+            const btn = document.getElementById("submitDailyLogBtn");
+
+            btn.disabled = true;
+            btn.textContent = "Saving Daily Report...";
+
+            const newLog = {
+                matric_number: currentStudent.matric_number,
+                log_date: logDate,
+                work_description: workDesc,
+                tools_used: toolsUsed,
+                hours_worked: hoursWorked,
+                status: "Pending",
+                supervisor_feedback: ""
+            };
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient.from("daily_logs").insert([newLog]);
+                } catch (e) {
+                    console.warn("Supabase daily_logs insert note:", e.message);
+                }
+            }
+
+            const store = getLocalStore();
+            store.daily_logs.unshift({ id: store.daily_logs.length + 1, ...newLog });
+            saveLocalStore(store);
+
+            document.getElementById("logToolsInput").value = "";
+            document.getElementById("logDescInput").value = "";
+            btn.disabled = false;
+            btn.textContent = "Submit Daily Report";
+            renderStudentDataLists();
+            alert("Daily Report submitted successfully!");
+        }
+
+        async function submitWeeklyReport(event) {
+            event.preventDefault();
+            const weekNum = parseInt(document.getElementById("weekNumberSelect").value, 10);
+            const summary = document.getElementById("weeklySummaryInput").value.trim();
+            const btn = document.getElementById("submitWeeklyBtn");
+
+            btn.disabled = true;
+            btn.textContent = "Submitting Weekly Report...";
+
+            const newWeekly = {
+                matric_number: currentStudent.matric_number,
+                week_number: weekNum,
+                summary: summary,
+                status: "Pending"
+            };
+
+            if (supabaseClient) {
+                try {
+                    await supabaseClient.from("weekly_reports").upsert([newWeekly], { onConflict: "matric_number,week_number" });
+                } catch (e) {
+                    console.warn("Supabase weekly_reports insert note:", e.message);
+                }
+            }
+
+            const store = getLocalStore();
+            const existingIdx = store.weekly_reports.findIndex(
+                w => w.matric_number === currentStudent.matric_number && Number(w.week_number) === weekNum
+            );
+            if (existingIdx !== -1) {
+                store.weekly_reports[existingIdx] = { ...store.weekly_reports[existingIdx], ...newWeekly };
+            } else {
+                store.weekly_reports.push({ id: store.weekly_reports.length + 1, ...newWeekly });
+            }
+            saveLocalStore(store);
+
+            document.getElementById("weeklySummaryInput").value = "";
+            btn.disabled = false;
+            btn.textContent = "Submit Weekly Report";
+            renderStudentDataLists();
+            alert(`Week ${weekNum} Progress Report submitted!`);
+        }
+
+        function renderStudentDataLists() {
+            const store = getLocalStore();
+            const myAtt = store.attendance.filter(a => a.matric_number === currentStudent.matric_number);
+            const myLogs = store.daily_logs.filter(l => l.matric_number === currentStudent.matric_number);
+            const myWeeks = store.weekly_reports.filter(w => w.matric_number === currentStudent.matric_number);
+
+            // Today's Clock-In / Out Status
+            const todayDate = new Date().toISOString().split("T")[0];
+            const todayRec = myAtt.find(a => a.attendance_date === todayDate);
+            const btnIn = document.getElementById("btnClockIn");
+            const btnOut = document.getElementById("btnClockOut");
+
+            if (todayRec) {
+                document.getElementById("todayClockInLabel").innerHTML = `<span style="color:#34D399;">${todayRec.clock_in_time} (${todayRec.clock_in_status})</span>`;
+                btnIn.disabled = true;
+                btnIn.textContent = "✅ Clocked In";
+
+                if (todayRec.clock_out_time) {
+                    document.getElementById("todayClockOutLabel").innerHTML = `<span style="color:#34D399;">${todayRec.clock_out_time}</span>`;
+                    btnOut.disabled = true;
+                    btnOut.textContent = "✅ Shift Done";
+                } else {
+                    document.getElementById("todayClockOutLabel").textContent = "Awaiting Clock-Out";
+                    btnOut.disabled = false;
+                    btnOut.textContent = "📸 Clock Out";
+                }
+            } else {
+                document.getElementById("todayClockInLabel").textContent = "Not clocked in";
+                document.getElementById("todayClockOutLabel").textContent = "Not clocked out";
+                btnIn.disabled = false;
+                btnIn.textContent = "📸 Clock In";
+                btnOut.disabled = false;
+                btnOut.textContent = "📸 Clock Out";
+            }
+
+            // Compact Daily Logs List
+            const dailyContainer = document.getElementById("compactDailyLogsList");
+            dailyContainer.innerHTML = "";
+            if (myLogs.length === 0) {
+                dailyContainer.innerHTML = `<div style="text-align:center; padding:1.25rem; color:var(--text-muted); font-size:0.84rem;">No daily logs submitted yet.</div>`;
+            } else {
+                myLogs.forEach(l => {
+                    const isVer = l.status === "Verified" || l.status === "Approved";
+                    const stBadge = isVer ? "badge-success" : "badge-warning";
+                    const item = document.createElement("div");
+                    item.style.padding = "0.9rem 1rem";
+                    item.style.borderRadius = "10px";
+                    item.style.background = "#0B1221";
+                    item.style.border = "1px solid var(--border-color)";
+                    item.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                            <strong style="font-size:0.88rem; color:#FFFFFF;">${l.log_date} (${l.hours_worked} hrs)</strong>
+                            <span class="badge ${stBadge}">${isVer ? "Verified" : l.status}</span>
+                        </div>
+                        <p style="font-size:0.84rem; color:var(--text-secondary); margin-bottom:0.35rem;">${l.work_description}</p>
+                        <div style="font-size:0.75rem; color:var(--accent-cyan);"><strong>Tools:</strong> ${l.tools_used}</div>
+                    `;
+                    dailyContainer.appendChild(item);
+                });
+            }
+
+            // Compact Weekly Reports List
+            const weeklyContainer = document.getElementById("compactWeeklyReportsList");
+            weeklyContainer.innerHTML = "";
+            if (myWeeks.length === 0) {
+                weeklyContainer.innerHTML = `<div style="text-align:center; padding:1.25rem; color:var(--text-muted); font-size:0.84rem;">No weekly reports submitted yet.</div>`;
+            } else {
+                myWeeks.sort((a, b) => a.week_number - b.week_number).forEach(w => {
+                    const isVer = w.status === "Verified" || w.status === "Approved";
+                    const stBadge = isVer ? "badge-success" : "badge-warning";
+                    const item = document.createElement("div");
+                    item.style.padding = "0.9rem 1rem";
+                    item.style.borderRadius = "10px";
+                    item.style.background = "#0B1221";
+                    item.style.border = "1px solid var(--border-color)";
+                    item.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                            <strong style="font-size:0.88rem; color:#FFFFFF;">Week ${w.week_number} of 24</strong>
+                            <span class="badge ${stBadge}">${isVer ? "Verified" : w.status}</span>
+                        </div>
+                        <p style="font-size:0.84rem; color:var(--text-secondary);">${w.summary}</p>
+                    `;
+                    weeklyContainer.appendChild(item);
+                });
+            }
+        }
+
+        function logoutStudent() {
+            stopLiveFrontCamera();
+            localStorage.removeItem("mouau_active_student_matric");
+            window.location.href = "index.html";
+        }
+    </script>
+</body>
+</html>
